@@ -14,7 +14,7 @@ contract ToorToken is ERC20Basic {
 
     struct Account {
         uint balance;
-        uint lastTime;
+        uint lastInterval;
     }
 
     mapping(address => Account) accounts;
@@ -22,7 +22,7 @@ contract ToorToken is ERC20Basic {
     uint256 totalSupply_;
     uint256 maxSupply_;
     uint256 startTime;
-    uint256 pendingDividendsToGenerate;
+    //uint256 pendingDividendsToGenerate;
 
     string public name;
     uint public decimals;
@@ -36,6 +36,8 @@ contract ToorToken is ERC20Basic {
     uint256 private totalVestingPool;
     uint256 private pendingVestingPool;
     uint256 private dividendRate;
+    uint256 private finalIntervalForDividend;
+    uint256 private timeToGenAllDividends;
     address private founder1 = 0xeD20cae0BF1FF4054E1a12bb071d41c95B5C94b5;
     address private founder2 = 0x220Aad0b0bf12fF7245A29cbBA8fcfe72D0dE5d9;
     address private founder3 = 0xc97dfb488407189C5b6d784678b6Dc8516Be88ca;
@@ -45,27 +47,34 @@ contract ToorToken is ERC20Basic {
     address private bounty = 0x21445651dD395761544eF1658C5fFd2de7Ca45aC;
 
     function ToorToken() {
-        maxSupply_ = 100000000 * 10**18;
-        totalSupply_ = 13000000 * 10**18;
-        accounts[company].balance = 9750000 * 10**18;
-        accounts[bounty].balance = 3250000 * 10**18;
         name = "ToorCoin";
         decimals = 18;
         symbol = "TOOR";
-        startTime = now;
+
+        maxSupply_ = 100000000 * 10**18;
+        totalSupply_ = 13500000 * 10**18;
+        timeToGenAllDividends = 630720000;
+        dividendInterval = 60;  // This is 1 min in seconds
         pendingInstallments = 4;
-        totalVestingPool = 5000000 * 10**18;
-        pendingVestingPool = 5000000 * 10**18;
-        pendingDividendsToGenerate = maxSupply_ - totalSupply_ - totalVestingPool;
-        dividendInterval = 86400;  // This is 1 day in seconds
-        vestingPeriod = 7776000; // This equals 3 months
-        cliff = vestingPeriod * 2; // This equals 6 months
-        dividendRate = 1.000213 * 10**6; // Think about decimal places
+        totalVestingPool = 4500000 * 10**18;
+        startTime = now;
+        dividendRate = 1.00000014547206 * 10**14;
+
+        accounts[company].balance = (totalSupply_ * 75) / 100; // 75% of initial balance goes to bounty
+        accounts[company].lastInterval = 0;
+        accounts[bounty].balance = (totalSupply_ * 25) / 100; // 25% of inital balance goes to company expenses
+        accounts[bounty].lastInterval = 0;
+        pendingVestingPool = totalVestingPool;
+        //pendingDividendsToGenerate = maxSupply_ - totalSupply_ - totalVestingPool;
+        vestingPeriod = timeToGenAllDividends / 80; // One vesting period is a quarter. 80 quarters in 20 years
+        cliff = vestingPeriod * 2; // Cliff is two vesting periods aka 6 months roughly
+        finalIntervalForDividend = timeToGenAllDividends / dividendInterval; // This is 7120 days = 20 years. Manually calculated
     }
 
     /**
     * @dev total number of tokens in existence
     */
+    // TODO: ADD MINTED TOKENS TO THIS CALCULATION
     function totalSupply() public view returns (uint256) {
         return totalSupply_;
     }
@@ -89,28 +98,28 @@ contract ToorToken is ERC20Basic {
         accounts[msg.sender].balance -= _value;
         accounts[_to].balance += _value;
 
-        accounts[msg.sender].lastTime = now;
-        accounts[_to].lastTime = now;
-
         Transfer(msg.sender, _to, _value);
         return true;
     }
 
+    // TODO: ADD TOKENS MINTED TO TOTALSUPPLY
     function addDividends(address owner) private returns (bool) {
         if (dividendsOwed(owner) > 0) {
             accounts[owner].balance += dividendsOwed(owner);
+            accounts[owner].lastInterval = currentInterval();
         }
 
         return;
     }
 
+    // TODO: FIX TOKEN VESTING ACCORDING TO NEW INTERVAL SCHEME
     function vestTokens() public returns (bool) {
         require(pendingInstallments > 0);
         require(pendingVestingPool > 0);
         require(now - startTime > cliff);
 
-        uint256 gap = now - startTime;
-        uint256 intervals = ((gap - (gap % vestingPeriod)) / vestingPeriod);
+        //uint256 gap = now - startTime;
+        uint256 intervals = currentInterval();
 
         if (intervals > 4) {
             intervals = 4;
@@ -127,11 +136,11 @@ contract ToorToken is ERC20Basic {
         accounts[founder4].balance += dividendCat1;
         accounts[founder5].balance += dividendCat1;
 
-        accounts[founder2].lastTime = now;
-        accounts[founder2].lastTime = now;
-        accounts[founder3].lastTime = now;
-        accounts[founder4].lastTime = now;
-        accounts[founder5].lastTime = now;
+        accounts[founder2].lastInterval = currentInterval();
+        accounts[founder2].lastInterval = currentInterval();
+        accounts[founder3].lastInterval = currentInterval();
+        accounts[founder4].lastInterval = currentInterval();
+        accounts[founder5].lastInterval = currentInterval();
 
         totalSupply_ += dividendsToVest;
         pendingVestingPool -= dividendsToVest;
@@ -140,13 +149,21 @@ contract ToorToken is ERC20Basic {
 
     // Need to address decimal points
     function dividendsOwed(address owner) private view returns (uint256) {
-        uint256 gap = now - accounts[owner].lastTime;
+        if (accounts[owner].lastInterval >= finalIntervalForDividend) {
+            return 0;
+        }
+
+        uint256 gap = currentInterval() - accounts[owner].lastInterval;
 
         if (gap < dividendInterval) {
             return 0;
         } else {
-            return accounts[owner].balance * (dividendRate**((gap - (gap % dividendInterval)) / (dividendInterval * 10**6)));
+            return accounts[owner].balance * ((dividendRate / 10**14)**gap);
         }
+    }
+
+    function currentInterval() private view returns (uint256) {
+        return (now - startTime) / dividendInterval;
     }
 
     /**
