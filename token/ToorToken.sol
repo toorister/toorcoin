@@ -18,6 +18,8 @@ contract ToorToken is ERC20Basic {
     }
 
     mapping(address => Account) accounts;
+    mapping(uint256 => uint256) ratesByYear;
+    uint256 private rateMultiplier;
 
     uint256 totalSupply_;
     uint256 maxSupply_;
@@ -28,16 +30,16 @@ contract ToorToken is ERC20Basic {
     uint public decimals;
     string public symbol;
 
-    uint256 private dividendInterval;
+    uint256 private tokenGenInterval;
     uint256 private maxNoOfDividendPayouts;
     uint256 private vestingPeriod;
     uint256 private cliff;
     uint256 private pendingInstallments;
     uint256 private totalVestingPool;
     uint256 private pendingVestingPool;
-    uint256 private dividendRate;
-    uint256 private finalIntervalForDividend;
-    uint256 private timeToGenAllDividends;
+    uint256 private finalIntervalForTokenGen;
+    uint256 private intervalsPerYear;
+    uint256 private timeToGenAllTokens;
     address private founder1 = 0xeD20cae0BF1FF4054E1a12bb071d41c95B5C94b5;
     address private founder2 = 0x220Aad0b0bf12fF7245A29cbBA8fcfe72D0dE5d9;
     address private founder3 = 0xc97dfb488407189C5b6d784678b6Dc8516Be88ca;
@@ -51,14 +53,36 @@ contract ToorToken is ERC20Basic {
         decimals = 18;
         symbol = "TOOR";
 
+        // Setup the token staking reward percentage per year
+        rateMultiplier = 10**14;
+        ratesByYear[1] = 1.00000046490366 * 10**14;
+        ratesByYear[2] = 1.00000032378583 * 10**14;
+        ratesByYear[3] = 1.00000027661401 * 10**14;
+        ratesByYear[4] = 1.00000024145523 * 10**14;
+        ratesByYear[5] = 1.00000021423457 * 10**14;
+        ratesByYear[6] = 1.00000019253429 * 10**14;
+        ratesByYear[7] = 1.00000017482861 * 10**14;
+        ratesByYear[8] = 1.00000016010692 * 10**14;
+        ratesByYear[9] = 1.00000014767313 * 10**14;
+        ratesByYear[10] = 1.00000013703215 * 10**14;
+        ratesByYear[11] = 1.00000012782217 * 10**14;
+        ratesByYear[12] = 1.00000011977261 * 10**14;
+        ratesByYear[13] = 1.00000011267710 * 10**14;
+        ratesByYear[14] = 1.00000010637548 * 10**14;
+        ratesByYear[15] = 1.00000010074153 * 10**14;
+        ratesByYear[16] = 1.00000009567447 * 10**14;
+        ratesByYear[17] = 1.00000009109281 * 10**14;
+        ratesByYear[18] = 1.00000008692999 * 10**14;
+        ratesByYear[19] = 1.00000008313106 * 10**14;
+        ratesByYear[20] = 1.00000007965032 * 10**14;
+        
         maxSupply_ = 100000000 * 10**18;
         totalSupply_ = 13500000 * 10**18;
-        timeToGenAllDividends = 630720000;
-        dividendInterval = 60;  // This is 1 min in seconds
+        timeToGenAllTokens = 630720000; // 20 years in seconds
+        tokenGenInterval = 60;  // This is 1 min in seconds
         pendingInstallments = 4;
         totalVestingPool = 4500000 * 10**18;
         startTime = now;
-        dividendRate = 1.00000014547206 * 10**14;
 
         accounts[company].balance = (totalSupply_ * 75) / 100; // 75% of initial balance goes to bounty
         accounts[company].lastInterval = 0;
@@ -66,9 +90,10 @@ contract ToorToken is ERC20Basic {
         accounts[bounty].lastInterval = 0;
         pendingVestingPool = totalVestingPool;
         //pendingDividendsToGenerate = maxSupply_ - totalSupply_ - totalVestingPool;
-        vestingPeriod = timeToGenAllDividends / 80; // One vesting period is a quarter. 80 quarters in 20 years
+        vestingPeriod = timeToGenAllTokens / 80; // One vesting period is a quarter. 80 quarters in 20 years
         cliff = vestingPeriod * 2; // Cliff is two vesting periods aka 6 months roughly
-        finalIntervalForDividend = timeToGenAllDividends / dividendInterval; // This is 7120 days = 20 years. Manually calculated
+        finalIntervalForTokenGen = timeToGenAllTokens / tokenGenInterval; // This is 7120 days = 20 years. Manually calculated
+        intervalsPerYear = finalIntervalForTokenGen / 20;
     }
 
     /**
@@ -102,10 +127,9 @@ contract ToorToken is ERC20Basic {
         return true;
     }
 
-    // TODO: ADD TOKENS MINTED TO TOTALSUPPLY
     function addDividends(address owner) private returns (bool) {
-        if (dividendsOwed(owner) > 0) {
-            accounts[owner].balance += dividendsOwed(owner);
+        if (tokensOwed(owner) > 0) {
+            accounts[owner].balance += tokensOwed(owner);
             accounts[owner].lastInterval = currentInterval();
         }
 
@@ -125,16 +149,16 @@ contract ToorToken is ERC20Basic {
             intervals = 4;
         }
 
-        uint256 dividendsToVest = ( totalVestingPool / 4 ) * intervals;
+        uint256 tokensToVest = ( totalVestingPool / 4 ) * intervals;
 
-        uint256 dividendCat1 = dividendsToVest / 8;
-        uint256 dividendCat2 = dividendCat1 * 2;
+        uint256 founderCat1 = tokensToVest / 8;
+        uint256 founderCat2 = founderCat1 * 2;
         
-        accounts[founder1].balance += dividendCat2;
-        accounts[founder2].balance += dividendCat2;
-        accounts[founder3].balance += dividendCat2;
-        accounts[founder4].balance += dividendCat1;
-        accounts[founder5].balance += dividendCat1;
+        accounts[founder1].balance += founderCat2;
+        accounts[founder2].balance += founderCat2;
+        accounts[founder3].balance += founderCat2;
+        accounts[founder4].balance += founderCat1;
+        accounts[founder5].balance += founderCat1;
 
         accounts[founder2].lastInterval = currentInterval();
         accounts[founder2].lastInterval = currentInterval();
@@ -142,28 +166,54 @@ contract ToorToken is ERC20Basic {
         accounts[founder4].lastInterval = currentInterval();
         accounts[founder5].lastInterval = currentInterval();
 
-        totalSupply_ += dividendsToVest;
-        pendingVestingPool -= dividendsToVest;
+        totalSupply_ += tokensToVest;
+        pendingVestingPool -= tokensToVest;
         pendingInstallments -= intervals;
     }
 
     // Need to address decimal points
-    function dividendsOwed(address owner) private view returns (uint256) {
-        if (accounts[owner].lastInterval >= finalIntervalForDividend) {
+    function tokensOwed(address owner) private view returns (uint256) {
+        if (accounts[owner].lastInterval >= finalIntervalForTokenGen) {
             return 0;
         }
 
-        uint256 gap = currentInterval() - accounts[owner].lastInterval;
+        uint256 tokensPending = 0;
+        uint256 currInterval = currentInterval();
 
-        if (gap < dividendInterval) {
-            return 0;
-        } else {
-            return accounts[owner].balance * ((dividendRate / 10**14)**gap);
+        for (uint rateWindow = 1; rateWindow <= 20; rateWindow++) {
+            tokensPending += validate(rateWindow, accounts[owner].lastInterval, currInterval) * accounts[owner].balance * ((ratesByYear[rateWindow] / rateMultiplier) ** getIntervalsForWindow(rateWindow, accounts[owner].lastInterval, currInterval));
         }
+
+        return tokensPending;
     }
 
     function currentInterval() private view returns (uint256) {
-        return (now - startTime) / dividendInterval;
+        return (now - startTime) / tokenGenInterval;
+    }
+
+    function validate(uint256 rateWindow, uint256 lastInterval, uint256 currentInterval) private view returns (uint256) {
+        if ((rateWindow * intervalsPerYear) < lastInterval) {
+            return 0; // This means that the window has already been paid for
+        } else if (currentInterval < ((rateWindow - 1) * intervalsPerYear)) {
+            return 0; // This means that we are not at that window yet
+        } else {
+            return 1;
+        }
+    }
+
+    // This function checks how many intervals for a given window do we owe tokens to someone for 
+    function getIntervalsForWindow(uint256 rateWindow, uint256 lastInterval, uint256 currentInterval) private view returns (uint256) {
+        // If lastInterval for holder falls in a window previous to current one, the lastInterval for the window passed into the function would be the window start interval
+        if (lastInterval < ((rateWindow - 1) * intervalsPerYear)) {
+            lastInterval = ((rateWindow - 1) * intervalsPerYear);
+        }
+
+        // If currentInterval for holder falls in a window higher than current one, the currentInterval for the window passed into the function would be the window end interval
+        if (currentInterval < rateWindow * intervalsPerYear) {
+            currentInterval = rateWindow * intervalsPerYear;
+        }
+
+        return currentInterval - lastInterval;
     }
 
     /**
@@ -172,6 +222,6 @@ contract ToorToken is ERC20Basic {
     * @return An uint256 representing the amount owned by the passed address.
     */
     function balanceOf(address _owner) public view returns (uint256 balance) {
-        return accounts[_owner].balance + dividendsOwed(_owner);
+        return accounts[_owner].balance + tokensOwed(_owner);
     }
 }
