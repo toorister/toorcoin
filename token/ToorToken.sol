@@ -21,7 +21,7 @@ contract ToorToken is ERC20Basic {
     mapping(uint256 => uint256) ratesByYear;
     uint256 private rateMultiplier;
 
-    uint256 totalSupply_;
+    uint256 initialSupply_;
     uint256 maxSupply_;
     uint256 startTime;
     //uint256 pendingDividendsToGenerate;
@@ -77,16 +77,16 @@ contract ToorToken is ERC20Basic {
         ratesByYear[20] = 1.00000007965032 * 10**14;
         
         maxSupply_ = 100000000 * 10**18;
-        totalSupply_ = 13500000 * 10**18;
+        initialSupply_ = 13500000 * 10**18;
         timeToGenAllTokens = 630720000; // 20 years in seconds
         tokenGenInterval = 60;  // This is 1 min in seconds
         pendingInstallments = 4;
         totalVestingPool = 4500000 * 10**18;
         startTime = now;
 
-        accounts[company].balance = (totalSupply_ * 75) / 100; // 75% of initial balance goes to bounty
+        accounts[company].balance = (initialSupply_ * 75) / 100; // 75% of initial balance goes to bounty
         accounts[company].lastInterval = 0;
-        accounts[bounty].balance = (totalSupply_ * 25) / 100; // 25% of inital balance goes to company expenses
+        accounts[bounty].balance = (initialSupply_ * 25) / 100; // 25% of inital balance goes to company expenses
         accounts[bounty].lastInterval = 0;
         pendingVestingPool = totalVestingPool;
         //pendingDividendsToGenerate = maxSupply_ - totalSupply_ - totalVestingPool;
@@ -101,7 +101,21 @@ contract ToorToken is ERC20Basic {
     */
     // TODO: ADD MINTED TOKENS TO THIS CALCULATION
     function totalSupply() public view returns (uint256) {
-        return totalSupply_;
+        uint256 totSupply = 0;
+        uint256 currInterval = currentInterval();
+        
+        // Calculate specifically for the first year
+        totSupply += validate(1, 0, currInterval) * initialSupply_ * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime, currInterval));
+        totSupply += validate(1, 0, currInterval) * (initialSupply_ + (totalVestingPool / 2)) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime, startTime + cliff));
+        totSupply += validate(1, 0, currInterval) * (initialSupply_ + (totalVestingPool / 4)) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime + cliff, startTime + cliff + vestingPeriod));
+        totSupply += validate(1, 0, currInterval) * (initialSupply_ + (totalVestingPool / 4)) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime + cliff + vestingPeriod, startTime + cliff + cliff));
+
+        // The second year onwards, there is no increase in token supply through vesting. So simply applying 1 rate for the year will work
+        for (uint rateWindow = 2; rateWindow <= 20; rateWindow++) {
+            totSupply += validate(rateWindow, 0, currInterval) * initialSupply_ * ((ratesByYear[rateWindow] / rateMultiplier) ** getIntervalsForWindow(rateWindow, startTime, currInterval));
+        }
+
+        return totSupply;
     }
 
     function maxSupply() public view returns (uint256) {
@@ -166,7 +180,6 @@ contract ToorToken is ERC20Basic {
         accounts[founder4].lastInterval = currentInterval();
         accounts[founder5].lastInterval = currentInterval();
 
-        totalSupply_ += tokensToVest;
         pendingVestingPool -= tokensToVest;
         pendingInstallments -= intervals;
     }
