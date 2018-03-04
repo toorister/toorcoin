@@ -48,7 +48,7 @@ contract ToorToken is ERC20Basic {
     address private company = 0x14278b24e40138822aD75EC740c23e3a99300DBf;
     address private bounty = 0x21445651dD395761544eF1658C5fFd2de7Ca45aC;
 
-    function ToorToken() {
+    function ToorToken() public {
         name = "ToorCoin";
         decimals = 18;
         symbol = "TOOR";
@@ -191,10 +191,10 @@ contract ToorToken is ERC20Basic {
         return (now - startTime) / tokenGenInterval;
     }
 
-    function validate(uint256 rateWindow, uint256 lastInterval, uint256 currentInterval) private view returns (uint256) {
+    function validate(uint256 rateWindow, uint256 lastInterval, uint256 currInterval) private view returns (uint256) {
         if ((rateWindow * intervalsPerYear) < lastInterval) {
             return 0; // This means that the window has already been paid for
-        } else if (currentInterval < ((rateWindow - 1) * intervalsPerYear)) {
+        } else if (currInterval < ((rateWindow - 1) * intervalsPerYear)) {
             return 0; // This means that we are not at that window yet
         } else {
             return 1;
@@ -202,18 +202,18 @@ contract ToorToken is ERC20Basic {
     }
 
     // This function checks how many intervals for a given window do we owe tokens to someone for 
-    function getIntervalsForWindow(uint256 rateWindow, uint256 lastInterval, uint256 currentInterval) private view returns (uint256) {
+    function getIntervalsForWindow(uint256 rateWindow, uint256 lastInterval, uint256 currInterval) private view returns (uint256) {
         // If lastInterval for holder falls in a window previous to current one, the lastInterval for the window passed into the function would be the window start interval
         if (lastInterval < ((rateWindow - 1) * intervalsPerYear)) {
             lastInterval = ((rateWindow - 1) * intervalsPerYear);
         }
 
         // If currentInterval for holder falls in a window higher than current one, the currentInterval for the window passed into the function would be the window end interval
-        if (currentInterval < rateWindow * intervalsPerYear) {
-            currentInterval = rateWindow * intervalsPerYear;
+        if (currInterval < rateWindow * intervalsPerYear) {
+            currInterval = rateWindow * intervalsPerYear;
         }
 
-        return currentInterval - lastInterval;
+        return currInterval - lastInterval;
     }
 
     /**
