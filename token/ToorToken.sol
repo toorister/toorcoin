@@ -99,20 +99,22 @@ contract ToorToken is ERC20Basic {
     /**
     * @dev total number of tokens in existence
     */
-    // TODO: ADD MINTED TOKENS TO THIS CALCULATION
+    // TODO: Do some dry run working to make sure this looks fine
     function totalSupply() public view returns (uint256) {
         uint256 totSupply = 0;
         uint256 currInterval = currentInterval();
         
         // Calculate specifically for the first year
-        totSupply += validate(1, 0, currInterval) * initialSupply_ * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime, currInterval));
-        totSupply += validate(1, 0, currInterval) * (initialSupply_ + (totalVestingPool / 2)) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime, startTime + cliff));
-        totSupply += validate(1, 0, currInterval) * (initialSupply_ + (totalVestingPool / 4)) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime + cliff, startTime + cliff + vestingPeriod));
-        totSupply += validate(1, 0, currInterval) * (initialSupply_ + (totalVestingPool / 4)) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime + cliff + vestingPeriod, startTime + cliff + cliff));
+        totSupply += validate(1, startTime, currInterval) * initialSupply_ * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime, currInterval));
+        totSupply += validate(1, startTime + cliff, currInterval) * (totalVestingPool / 2) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime + cliff, currInterval));
+        totSupply += validate(1, startTime + cliff + vestingPeriod, currInterval) * (totalVestingPool / 4) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startTime + cliff + vestingPeriod, currInterval));
+        if (currInterval > (startTime + intervalsPerYear)) {
+            totSupply += (totalVestingPool / 4);
+        }
 
         // The second year onwards, there is no increase in token supply through vesting. So simply applying 1 rate for the year will work
         for (uint rateWindow = 2; rateWindow <= 20; rateWindow++) {
-            totSupply += validate(rateWindow, 0, currInterval) * initialSupply_ * ((ratesByYear[rateWindow] / rateMultiplier) ** getIntervalsForWindow(rateWindow, startTime, currInterval));
+            totSupply += validate(rateWindow, startTime, currInterval) * initialSupply_ * ((ratesByYear[rateWindow] / rateMultiplier) ** getIntervalsForWindow(rateWindow, startTime, currInterval));
         }
 
         return totSupply;
