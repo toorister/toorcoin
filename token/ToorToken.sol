@@ -146,8 +146,7 @@ contract ToorToken is ERC20Basic, Ownable {
         return maxSupply_;
     }
 
-    function transfer(address _to, uint256 _value) public returns (bool) {
-        require(_to != address(0)); // Transfer should not be allowed to burn tokens
+    function transfer(address _to, uint256 _value) canTransfer(_to) public returns (bool) {
         require(_value <= balanceOf(msg.sender)); // Sender should have the number of tokens they want to send
 
         // Distribute rewards tokens first
@@ -394,5 +393,18 @@ contract ToorToken is ERC20Basic, Ownable {
     function setRewardGenerationComplete(bool _value) onlyOwner public returns (bool) {
         rewardGenerationComplete = _value;
         return true;
+    }
+
+    // This function is added to get a state of where the token is in term of reward generation
+    function getNow() public returns (uint256, uint256) {
+        return (now, block.number);
+    }
+
+    // This modifier is used on the transfer method and defines where tokens CANNOT be sent
+    modifier canTransfer(address _to) {
+        require(_to != address(0)); // Transfer should not be allowed to burn tokens
+        // This is to ensure that no tokens can be transferred to founder accounts, as that would corrupt reward calculation
+        require((_to != founder1) && (_to != founder2) && (_to != founder3) && (_to != founder4) && (_to != founder5)); 
+        _;
     }
 }
