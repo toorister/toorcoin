@@ -38,7 +38,8 @@ contract ToorToken is ERC20Basic, Ownable {
     uint256 private totalVestingPool; //  Defines total vesting pool set aside for team
     uint256 private pendingVestingPool; // Defines pending tokens in pool set aside for team
     uint256 private finalIntervalForTokenGen; // The last instance of reward calculation, after which rewards will cease
-    uint256 private intervalsPerYear; // Total number of times we calculate rewards per year
+    uint256 private totalRateWindows; // This specifies the number of rate windows over the total period of time
+    uint256 private intervalsPerWindow; // Total number of times we calculate rewards within 1 rate window
 
     // Variable to define once reward generation is complete
     bool public rewardGenerationComplete;
@@ -83,6 +84,7 @@ contract ToorToken is ERC20Basic, Ownable {
         ratesByYear[18] = 1.00000008692999 * 10**14;
         ratesByYear[19] = 1.00000008313106 * 10**14;
         ratesByYear[20] = 1.00000007965032 * 10**14;
+        totalRateWindows = 20;
         
         maxSupply_ = 100000000 * 10**18;
         initialSupply_ = 13500000 * 10**18;
@@ -101,10 +103,10 @@ contract ToorToken is ERC20Basic, Ownable {
         pendingVestingPool = totalVestingPool;
         pendingRewardsToMint = maxSupply_ - initialSupply_ - totalVestingPool;
         totalSupply_ = initialSupply_;
-        vestingPeriod = timeToGenAllTokens / 80; // One vesting period is a quarter. 80 quarters in 20 years
+        vestingPeriod = timeToGenAllTokens / (totalRateWindows * 4); // One vesting period is a quarter. 80 quarters in 20 years
         cliff = vestingPeriod * 2; // Cliff is two vesting periods aka 6 months roughly
-        finalIntervalForTokenGen = timeToGenAllTokens / tokenGenInterval; // This is 7120 days = 20 years. Manually calculated
-        intervalsPerYear = finalIntervalForTokenGen / 20;
+        finalIntervalForTokenGen = timeToGenAllTokens / tokenGenInterval;
+        intervalsPerWindow = finalIntervalForTokenGen / totalRateWindows;
     }
 
     // This gives the total supply of actual minted coins. Does not take rewards pending minting into consideration
@@ -124,19 +126,19 @@ contract ToorToken is ERC20Basic, Ownable {
         totSupply += validate(1, cliffInterval, currInterval) * (totalVestingPool / 2) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, cliffInterval, currInterval));
         totSupply += validate(1, cliffVestInterval, currInterval) * (totalVestingPool / 4) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, cliffVestInterval, currInterval));
         
-        // One currInterval is greater than intervalsPerYear, add the final vesting installment
-        if (currInterval > intervalsPerYear) {
+        // One currInterval is greater than intervalsPerWindow, add the final vesting installment
+        if (currInterval > intervalsPerWindow) {
             totSupply += (totalVestingPool / 4);
         }
 
         // The second year onwards, there is no increase in token supply through vesting. So simply applying 1 rate for the year will work
-        uint256 maxRateWindow = (currInterval / intervalsPerYear) + 1;
-        if (maxRateWindow > 20) {
-            maxRateWindow = 20; // If you changes this, change TokensOwed function also
+        uint256 maxRateWindow = (currInterval / intervalsPerWindow) + 1;
+        if (maxRateWindow > totalRateWindows) {
+            maxRateWindow = totalRateWindows; // If you changes this, change TokensOwed function also
         }
 
         for (uint rateWindow = 2; rateWindow <= maxRateWindow; rateWindow++) {
-            totSupply = validate(rateWindow, intervalsPerYear * (rateWindow - 1), currInterval) * totSupply * ((ratesByYear[rateWindow] / rateMultiplier) ** getIntervalsForWindow(rateWindow, intervalsPerYear * (rateWindow - 1), currInterval));
+            totSupply = validate(rateWindow, intervalsPerWindow * (rateWindow - 1), currInterval) * totSupply * ((ratesByYear[rateWindow] / rateMultiplier) ** getIntervalsForWindow(rateWindow, intervalsPerWindow * (rateWindow - 1), currInterval));
         }
 
         return totSupply;
@@ -258,10 +260,10 @@ contract ToorToken is ERC20Basic, Ownable {
         uint256 tokensHeld = accounts[owner].balance;
         uint256 currInterval = intervalAtTime(now);
 
-        uint256 minRateWindow = (accounts[owner].lastInterval / intervalsPerYear) + 1;
-        uint256 maxRateWindow = (currInterval / intervalsPerYear) + 1;
-        if (maxRateWindow > 20) {
-            maxRateWindow = 20;
+        uint256 minRateWindow = (accounts[owner].lastInterval / intervalsPerWindow) + 1;
+        uint256 maxRateWindow = (currInterval / intervalsPerWindow) + 1;
+        if (maxRateWindow > totalRateWindows) {
+            maxRateWindow = totalRateWindows;
         }
 
         // Loop through pending periods of rewards, and calculate the total balance user should hold
@@ -284,9 +286,9 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     function validate(uint256 rateWindow, uint256 lastInterval, uint256 currInterval) public view returns (uint256) {
-        if ((rateWindow * intervalsPerYear) < lastInterval) {
+        if ((rateWindow * intervalsPerWindow) < lastInterval) {
             return 0; // This means that the window has already been paid for
-        } else if (currInterval < ((rateWindow - 1) * intervalsPerYear)) {
+        } else if (currInterval < ((rateWindow - 1) * intervalsPerWindow)) {
             return 0; // This means that we are not at that window yet
         } else {
             return 1;
@@ -296,13 +298,13 @@ contract ToorToken is ERC20Basic, Ownable {
     // This function checks how many intervals for a given window do we owe tokens to someone for 
     function getIntervalsForWindow(uint256 rateWindow, uint256 lastInterval, uint256 currInterval) public view returns (uint256) {
         // If lastInterval for holder falls in a window previous to current one, the lastInterval for the window passed into the function would be the window start interval
-        if (lastInterval < ((rateWindow - 1) * intervalsPerYear)) {
-            lastInterval = ((rateWindow - 1) * intervalsPerYear);
+        if (lastInterval < ((rateWindow - 1) * intervalsPerWindow)) {
+            lastInterval = ((rateWindow - 1) * intervalsPerWindow);
         }
 
         // If currentInterval for holder falls in a window higher than current one, the currentInterval for the window passed into the function would be the window end interval
-        if (currInterval < rateWindow * intervalsPerYear) {
-            currInterval = rateWindow * intervalsPerYear;
+        if (currInterval < rateWindow * intervalsPerWindow) {
+            currInterval = rateWindow * intervalsPerWindow;
         }
 
         return currInterval - lastInterval;
