@@ -9,8 +9,7 @@ import "./Ownable.sol";
  * @dev Basic version of StandardToken, with no allowances.
  */
 contract ToorToken is ERC20Basic, Ownable {
-    // TODO LIST
-    // Add Ownable which could allow owner to flip a boolean to turn off reward calculation
+    // TODO LIST (NOTHING AT THE MOMENT)
 
     struct Account {
         uint balance;
@@ -40,6 +39,9 @@ contract ToorToken is ERC20Basic, Ownable {
     uint256 private pendingVestingPool; // Defines pending tokens in pool set aside for team
     uint256 private finalIntervalForTokenGen; // The last instance of reward calculation, after which rewards will cease
     uint256 private intervalsPerYear; // Total number of times we calculate rewards per year
+
+    // Variable to define once reward generation is complete
+    bool public rewardGenerationComplete;
 
     // Ether addresses of founders and company
     address private founder1 = 0xeD20cae0BF1FF4054E1a12bb071d41c95B5C94b5;
@@ -90,6 +92,7 @@ contract ToorToken is ERC20Basic, Ownable {
         startTime = now;
         tokenGenInterval = 60;  // This is 1 min in seconds
         uint256 timeToGenAllTokens = 630720000; // 20 years in seconds
+        rewardGenerationComplete = false;
         
         accounts[company].balance = (initialSupply_ * 75) / 100; // 75% of initial balance goes to bounty
         accounts[company].lastInterval = 0;
@@ -159,6 +162,10 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     function addReward(address owner) private returns (bool) {
+        if (rewardGenerationComplete) {
+            return true;
+        }
+
         uint256 tokensToReward = tokensOwed(owner);
 
         if (tokensToReward > 0) {
@@ -168,7 +175,7 @@ contract ToorToken is ERC20Basic, Ownable {
             pendingRewardsToMint -= tokensToReward; // This helps track rounding errors when computing rewards
         }
 
-        return;
+        return true;
     }
 
     // This function is to vest tokens to the founding team
@@ -304,7 +311,11 @@ contract ToorToken is ERC20Basic, Ownable {
 
     // This function tells the balance of tokens at a particular address
     function balanceOf(address _owner) public view returns (uint256 balance) {
-        return accounts[_owner].balance + tokensOwed(_owner);
+        if (rewardGenerationComplete) {
+            return accounts[_owner].balance;
+        } else {
+            return accounts[_owner].balance + tokensOwed(_owner);
+        }
     }
 
     // This functions returns the last time at which rewards were transferred to a particular address
@@ -377,5 +388,11 @@ contract ToorToken is ERC20Basic, Ownable {
 
     function getTeamAddresses() onlyOwner public view returns (address, address, address, address, address, address, address) {
         return (founder1, founder2, founder3, founder4, founder5, company, bounty);
+    }
+
+    // This is a setter for rewardGenerationComplete. It will be used to see if token rewards need to be computed, and can only be set by owner
+    function setRewardGenerationComplete(bool _value) onlyOwner public returns (bool) {
+        rewardGenerationComplete = _value;
+        return true;
     }
 }
