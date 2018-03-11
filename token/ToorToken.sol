@@ -12,7 +12,6 @@ contract ToorToken is ERC20Basic, Ownable {
     // TODO LIST
     // Add Ownable which could allow owner to flip a boolean to turn off reward calculation
     // Add Ownable function to allow owner to change founding team/company ether address
-    // Replace currentInterval() with intervalAtTime(now)
 
     struct Account {
         uint balance;
@@ -113,7 +112,7 @@ contract ToorToken is ERC20Basic, Ownable {
     
     function allocatedSupply() public view returns (uint256) {
         uint256 totSupply = initialSupply_;
-        uint256 currInterval = currentInterval();
+        uint256 currInterval = intervalAtTime(now);
         uint256 startInterval = 0;
         uint256 cliffInterval = intervalAtTime(startTime + cliff);
         uint256 cliffVestInterval = intervalAtTime(startTime + cliff + vestingPeriod);
@@ -166,7 +165,7 @@ contract ToorToken is ERC20Basic, Ownable {
         if (tokensToReward > 0) {
             increaseTotalSupply(tokensToReward); // This will break if total supply exceeds max cap. Should never happen though as tokensOwed checks for this condition
             accounts[owner].balance += tokensToReward;
-            accounts[owner].lastInterval = currentInterval();
+            accounts[owner].lastInterval = intervalAtTime(now);
             pendingRewardsToMint -= tokensToReward; // This helps track rounding errors when computing rewards
         }
 
@@ -180,7 +179,7 @@ contract ToorToken is ERC20Basic, Ownable {
         require(pendingVestingPool > 0);
         require(now - startTime > cliff);
 
-        uint256 currInterval = currentInterval();
+        uint256 currInterval = intervalAtTime(now);
 
         // Calculate the pending installments to pay based on current time
         uint256 installments = (currInterval * tokenGenInterval) / vestingPeriod;
@@ -252,7 +251,7 @@ contract ToorToken is ERC20Basic, Ownable {
         }
 
         uint256 tokensHeld = accounts[owner].balance;
-        uint256 currInterval = currentInterval();
+        uint256 currInterval = intervalAtTime(now);
 
         uint256 minRateWindow = (accounts[owner].lastInterval / intervalsPerYear) + 1;
         uint256 maxRateWindow = (currInterval / intervalsPerYear) + 1;
@@ -267,10 +266,6 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // Rewards owed are the total balance that user SHOULD have minus what they currently have
         return (tokensHeld - accounts[owner].balance);
-    }
-
-    function currentInterval() private view returns (uint256) {
-        return intervalAtTime(now);
     }
 
     function intervalAtTime(uint256 time) public view returns (uint256) {
