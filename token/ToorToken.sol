@@ -2,15 +2,14 @@ pragma solidity ^0.4.18;
 
 
 import "./ERC20Basic.sol";
-
+import "./Ownable.sol";
 
 /**
  * @title Basic token
  * @dev Basic version of StandardToken, with no allowances.
  */
-contract ToorToken is ERC20Basic {
+contract ToorToken is ERC20Basic, Ownable {
     // TODO LIST
-    // Add a function to burn tokens
     // Add Ownable which could allow owner to flip a boolean to turn off reward calculation
     // Add Ownable function to allow owner to change founding team/company ether address
     // Replace currentInterval() with intervalAtTime(now)
@@ -52,6 +51,10 @@ contract ToorToken is ERC20Basic {
     address private founder5 = 0x91C3f66A7Bd302DEb55C2ffd0421D48F63DBE011;
     address private company = 0x14278b24e40138822aD75EC740c23e3a99300DBf;
     address private bounty = 0x21445651dD395761544eF1658C5fFd2de7Ca45aC;
+
+    // Events section
+    event Mint(address indexed to, uint256 amount);
+    event Burn(address indexed burner, uint256 value);
 
     function ToorToken() public {
         name = "ToorCoin";
@@ -313,5 +316,25 @@ contract ToorToken is ERC20Basic {
     // This functions returns the last time at which rewards were transferred to a particular address
     function lastTimeOf(address _owner) public view returns (uint256 time) {
         return (accounts[_owner].lastInterval * tokenGenInterval) + startTime;
+    }
+
+    // This function is not meant to be used. It's only written as a fail-safe against potential unforeseen issues
+    function mint(address _to, uint256 _amount) onlyOwner public returns (bool) {
+        increaseTotalSupply(_amount);
+        accounts[_to].balance += _amount;
+        Mint(_to, _amount);
+        Transfer(address(0), _to, _amount);
+        return true;
+    }
+
+    // Allows the burning of tokens
+    function burn(uint256 _value) public {
+        require(_value <= accounts[msg.sender].balance);
+
+        address burner = msg.sender;
+        accounts[burner].balance -= _value;
+        totalSupply_ -= _value;
+        Burn(burner, _value);
+        Transfer(burner, address(0), _value);
     }
 }
