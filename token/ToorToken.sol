@@ -11,7 +11,6 @@ import "./Ownable.sol";
 contract ToorToken is ERC20Basic, Ownable {
     // TODO LIST
     // Add Ownable which could allow owner to flip a boolean to turn off reward calculation
-    // Add Ownable function to allow owner to change founding team/company ether address
 
     struct Account {
         uint balance;
@@ -331,5 +330,52 @@ contract ToorToken is ERC20Basic, Ownable {
         totalSupply_ -= _value;
         Burn(burner, _value);
         Transfer(burner, address(0), _value);
+    }
+
+    // These set of functions allow changing of founder and company addresses
+    function setFounder1(address _to) onlyOwner public returns (bool) {
+        require(_to != address(0));
+        founder1 = _to;
+        return true;
+    }
+
+    function setFounder2(address _to) onlyOwner public returns (bool) {
+        require(_to != address(0));
+        founder2 = _to;
+        return true;
+    }
+
+    function setFounder3(address _to) onlyOwner public returns (bool) {
+        require(_to != address(0));
+        founder3 = _to;
+        return true;
+    }
+
+    function setFounder4(address _to) onlyOwner public returns (bool) {
+        require(_to != address(0));
+        founder4 = _to;
+        return true;
+    }
+
+    function setFounder5(address _to) onlyOwner public returns (bool) {
+        require(_to != address(0));
+        founder5 = _to;
+        return true;
+    }
+
+    function setCompany(address _to) onlyOwner public returns (bool) {
+        require(_to != address(0));
+        company = _to;
+        return true;
+    }
+
+    function setBounty(address _to) onlyOwner public returns (bool) {
+        require(_to != address(0));
+        bounty = _to;
+        return true;
+    }
+
+    function getTeamAddresses() onlyOwner public view returns (address, address, address, address, address, address, address) {
+        return (founder1, founder2, founder3, founder4, founder5, company, bounty);
     }
 }
