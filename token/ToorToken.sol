@@ -396,7 +396,7 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     // This function is added to get a state of where the token is in term of reward generation
-    function getNow() public returns (uint256, uint256) {
+    function getNow() public view returns (uint256, uint256) {
         return (now, block.number);
     }
 
