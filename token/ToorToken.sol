@@ -96,10 +96,14 @@ contract ToorToken is ERC20Basic, Ownable {
         uint256 timeToGenAllTokens = 630720000; // 20 years in seconds
         rewardGenerationComplete = false;
         
+        // Mint initial tokens
         accounts[company].balance = (initialSupply_ * 75) / 100; // 75% of initial balance goes to bounty
         accounts[company].lastInterval = 0;
+        generateMintEvents(company,accounts[company].balance);
         accounts[bounty].balance = (initialSupply_ * 25) / 100; // 25% of inital balance goes to company expenses
         accounts[bounty].lastInterval = 0;
+        generateMintEvents(bounty,accounts[bounty].balance);
+
         pendingVestingPool = totalVestingPool;
         pendingRewardsToMint = maxSupply_ - initialSupply_ - totalVestingPool;
         totalSupply_ = initialSupply_;
@@ -174,6 +178,7 @@ contract ToorToken is ERC20Basic, Ownable {
             accounts[owner].balance += tokensToReward;
             accounts[owner].lastInterval = intervalAtTime(now);
             pendingRewardsToMint -= tokensToReward; // This helps track rounding errors when computing rewards
+            generateMintEvents(owner, tokensToReward);
         }
 
         return true;
@@ -241,6 +246,13 @@ contract ToorToken is ERC20Basic, Ownable {
             accounts[founder3].lastInterval = intervalToSet;
             accounts[founder4].lastInterval = intervalToSet;
             accounts[founder5].lastInterval = intervalToSet;
+
+            // Create events for token generation
+            generateMintEvents(founder1, founderCat1);
+            generateMintEvents(founder2, founderCat1);
+            generateMintEvents(founder3, founderCat1);
+            generateMintEvents(founder4, founderCat2);
+            generateMintEvents(founder5, founderCat2);
         }
     }
 
@@ -328,8 +340,14 @@ contract ToorToken is ERC20Basic, Ownable {
     function mint(address _to, uint256 _amount) onlyOwner public returns (bool) {
         increaseTotalSupply(_amount);
         accounts[_to].balance += _amount;
+        generateMintEvents(_to, _amount);
+        return true;
+    }
+
+    function generateMintEvents(address _to, uint256 _amount) private returns (bool) {
         Mint(_to, _amount);
         Transfer(address(0), _to, _amount);
+
         return true;
     }
 
