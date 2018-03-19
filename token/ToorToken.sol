@@ -10,20 +10,28 @@ import "./Ownable.sol";
  */
 contract ToorToken is ERC20Basic, Ownable {
     // TODO LIST (NOTHING AT THE MOMENT)
+    // Check out tokensOwed. Returning 0 at the moment. Same for balanceOf
+    // allocatedSupply is returning 16.75m instead of 13.5m + rewards
+    // Still need to test out transfers
+    // After vesting, lastInterval for founders is still set to startTime
+    // If after 10 months, vest is run. A founder is paid rewards for 4month (based on time elapsed since 6 month cliff). However, after vesting, lastInterval would be set to 9 month.
+    // LastInterval is usually set to now. But when computing rewards, we divide by tokenGenInterval, which can sometimes be a decimal value. Handle this
+    // TokenSupply at the moment is actual physical supply. But balances of owner are physical + rewards. That shows up as total amount held by people being greater than total supply on etherscan
+    // Reward being paid out at cliff vesting (after the first quarter vesting)
 
     struct Account {
         uint balance;
         uint lastInterval;
     }
 
-    mapping(address => Account) accounts;
+    mapping(address => Account) public accounts;
     mapping(uint256 => uint256) ratesByYear;
     uint256 private rateMultiplier;
 
     uint256 initialSupply_;
     uint256 totalSupply_;
     uint256 maxSupply_;
-    uint256 startTime;
+    uint256 public startTime;
     uint256 pendingRewardsToMint;
 
     string public name;
@@ -37,9 +45,10 @@ contract ToorToken is ERC20Basic, Ownable {
     uint256 private paidInstallments; // Defines the number of pending vesting installments for team
     uint256 private totalVestingPool; //  Defines total vesting pool set aside for team
     uint256 private pendingVestingPool; // Defines pending tokens in pool set aside for team
-    uint256 private finalIntervalForTokenGen; // The last instance of reward calculation, after which rewards will cease
+    uint256 public finalIntervalForTokenGen; // The last instance of reward calculation, after which rewards will cease
     uint256 private totalRateWindows; // This specifies the number of rate windows over the total period of time
     uint256 private intervalsPerWindow; // Total number of times we calculate rewards within 1 rate window
+    uint256 private intervalsPerBatch; // Defines the number of intervals we compute rewards for at a time
 
     // Variable to define once reward generation is complete
     bool public rewardGenerationComplete;
@@ -64,26 +73,27 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // Setup the token staking reward percentage per year
         rateMultiplier = 10**14;
-        ratesByYear[1] = 1.00000046490366 * 10**14;
-        ratesByYear[2] = 1.00000032378583 * 10**14;
-        ratesByYear[3] = 1.00000027661401 * 10**14;
-        ratesByYear[4] = 1.00000024145523 * 10**14;
-        ratesByYear[5] = 1.00000021423457 * 10**14;
-        ratesByYear[6] = 1.00000019253429 * 10**14;
-        ratesByYear[7] = 1.00000017482861 * 10**14;
-        ratesByYear[8] = 1.00000016010692 * 10**14;
-        ratesByYear[9] = 1.00000014767313 * 10**14;
-        ratesByYear[10] = 1.00000013703215 * 10**14;
-        ratesByYear[11] = 1.00000012782217 * 10**14;
-        ratesByYear[12] = 1.00000011977261 * 10**14;
-        ratesByYear[13] = 1.00000011267710 * 10**14;
-        ratesByYear[14] = 1.00000010637548 * 10**14;
-        ratesByYear[15] = 1.00000010074153 * 10**14;
-        ratesByYear[16] = 1.00000009567447 * 10**14;
-        ratesByYear[17] = 1.00000009109281 * 10**14;
-        ratesByYear[18] = 1.00000008692999 * 10**14;
-        ratesByYear[19] = 1.00000008313106 * 10**14;
-        ratesByYear[20] = 1.00000007965032 * 10**14;
+        ratesByYear[1] = 1.00066968526012 * 10**14;
+        ratesByYear[2] = 1.00046636022513 * 10**14;
+        ratesByYear[3] = 1.00039840345596 * 10**14;
+        ratesByYear[4] = 1.00034775593764 * 10**14;
+        ratesByYear[5] = 1.00030854533529 * 10**14;
+        ratesByYear[6] = 1.00027728778505 * 10**14;
+        ratesByYear[7] = 1.00025178487441 * 10**14;
+        ratesByYear[8] = 1.00023058052456 * 10**14;
+        ratesByYear[9] = 1.00021267190991 * 10**14;
+        ratesByYear[10] = 1.00019734575885 * 10**14;
+        ratesByYear[11] = 1.00018408084667 * 10**14;
+        ratesByYear[12] = 1.00017248741666 * 10**14;
+        ratesByYear[13] = 1.00016226817746 * 10**14;
+        ratesByYear[14] = 1.0001531924111 * 10**14;
+        ratesByYear[15] = 1.00014507832187 * 10**14;
+        ratesByYear[16] = 1.00013778071947 * 10**14;
+        ratesByYear[17] = 1.00013118224552 * 10**14;
+        ratesByYear[18] = 1.00012518700852 * 10**14;
+        ratesByYear[19] = 1.00011971588938 * 10**14;
+        ratesByYear[20] = 1.00011470302747 * 10**14;
+
         totalRateWindows = 20;
         
         maxSupply_ = 100000000 * 10**18;
@@ -92,8 +102,16 @@ contract ToorToken is ERC20Basic, Ownable {
         paidInstallments = 0;
         totalVestingPool = 4500000 * 10**18;
         startTime = now;
+        intervalsPerBatch = 3;
+        
+        // This is for 20 years
         tokenGenInterval = 60;  // This is 1 min in seconds
         uint256 timeToGenAllTokens = 630720000; // 20 years in seconds
+
+        // This is for 20 days
+        // tokenGenInterval = 240;  // This is 4 mins
+        // uint256 timeToGenAllTokens = 1752000; // roughly 20 days in seconds
+
         rewardGenerationComplete = false;
         
         // Mint initial tokens
@@ -236,7 +254,7 @@ contract ToorToken is ERC20Basic, Ownable {
             // Set last interval to the end of the installment period
             uint256 intervalToSet = (vestingPeriod * paidInstallments) / tokenGenInterval;
 
-            // In case last interval is less than cliff period, see cliff as the last interval. This is to ensure no rewards are paid for pre-cliff vesting periods
+            // In case last interval is less than cliff period, set cliff as the last interval. This is to ensure no rewards are paid for pre-cliff vesting periods
             if (intervalToSet < intervalAtTime(cliff)) {
                 intervalToSet = intervalAtTime(cliff);
             }
@@ -280,11 +298,31 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // Loop through pending periods of rewards, and calculate the total balance user should hold
         for (uint rateWindow = minRateWindow; rateWindow <= maxRateWindow; rateWindow++) {
-            tokensHeld = tokensHeld * ((ratesByYear[rateWindow] / rateMultiplier) ** getIntervalsForWindow(rateWindow, accounts[owner].lastInterval, currInterval));
+            uint256 intervals = getIntervalsForWindow(rateWindow, accounts[owner].lastInterval, currInterval);
+
+            // This part is to ensure we don't overflow when rewards are pending for a large number of intervals
+            // Loop through interval in batches
+            while (intervals > 0) {
+                if (intervals >= intervalsPerBatch) {
+                    tokensHeld = (tokensHeld * (ratesByYear[rateWindow] ** intervalsPerBatch)) / (rateMultiplier ** intervalsPerBatch);
+                    intervals -= intervalsPerBatch;
+                } else {
+                    tokensHeld = (tokensHeld * (ratesByYear[rateWindow] ** intervals)) / (rateMultiplier ** intervals);
+                    intervals = 0;
+                }
+            }
+            
         }
 
         // Rewards owed are the total balance that user SHOULD have minus what they currently have
         return (tokensHeld - accounts[owner].balance);
+    }
+
+    function minMaxWindows(address owner) public view returns (uint256 min, uint256 max) {
+        uint256 minRateWindow = (accounts[owner].lastInterval / intervalsPerWindow) + 1;
+        uint256 maxRateWindow = (intervalAtTime(now) / intervalsPerWindow) + 1;
+
+        return (minRateWindow, maxRateWindow);
     }
 
     function intervalAtTime(uint256 time) public view returns (uint256) {
@@ -315,7 +353,7 @@ contract ToorToken is ERC20Basic, Ownable {
         }
 
         // If currentInterval for holder falls in a window higher than current one, the currentInterval for the window passed into the function would be the window end interval
-        if (currInterval < rateWindow * intervalsPerWindow) {
+        if (currInterval > rateWindow * intervalsPerWindow) {
             currInterval = rateWindow * intervalsPerWindow;
         }
 
@@ -331,9 +369,13 @@ contract ToorToken is ERC20Basic, Ownable {
         }
     }
 
+    function balanceOfBasic(address _owner) public view returns (uint256 balance) {
+        return accounts[_owner].balance;
+    }
+
     // This functions returns the last time at which rewards were transferred to a particular address
-    function lastTimeOf(address _owner) public view returns (uint256 time) {
-        return (accounts[_owner].lastInterval * tokenGenInterval) + startTime;
+    function lastTimeOf(address _owner) public view returns (uint256 interval, uint256 time) {
+        return (accounts[_owner].lastInterval, (accounts[_owner].lastInterval * tokenGenInterval) + startTime);
     }
 
     // This function is not meant to be used. It's only written as a fail-safe against potential unforeseen issues
