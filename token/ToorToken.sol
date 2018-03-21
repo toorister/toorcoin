@@ -171,12 +171,15 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     function transfer(address _to, uint256 _value) canTransfer(_to) public returns (bool) {
-        require(_value <= balanceOf(msg.sender)); // Sender should have the number of tokens they want to send
+        uint256 tokensOwedSender = tokensOwed(msg.sender);
+        require(_value <= (balanceOfBasic(msg.sender) + tokensOwedSender)); // Sender should have the number of tokens they want to send
 
         // Distribute rewards tokens first
-        addReward(_to);
-        addReward(msg.sender);
-
+        if (!rewardGenerationComplete) {
+            addReward(_to);
+            addReward(msg.sender, tokensOwedSender);
+        }
+        
         accounts[msg.sender].balance -= _value;
         accounts[_to].balance += _value;
 
@@ -185,12 +188,21 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     function addReward(address owner) private returns (bool) {
-        if (rewardGenerationComplete) {
-            return true;
-        }
-
         uint256 tokensToReward = tokensOwed(owner);
 
+        if (tokensToReward > 0) {
+            increaseTotalSupply(tokensToReward); // This will break if total supply exceeds max cap. Should never happen though as tokensOwed checks for this condition
+            accounts[owner].balance += tokensToReward;
+            accounts[owner].lastInterval = intervalAtTime(now);
+            pendingRewardsToMint -= tokensToReward; // This helps track rounding errors when computing rewards
+            generateMintEvents(owner, tokensToReward);
+        }
+
+        return true;
+    }
+
+    // This overloaded method doesn't compute rewards and just uses what's passed in
+    function addReward(address owner, uint256 tokensToReward) private returns (bool) {
         if (tokensToReward > 0) {
             increaseTotalSupply(tokensToReward); // This will break if total supply exceeds max cap. Should never happen though as tokensOwed checks for this condition
             accounts[owner].balance += tokensToReward;
@@ -230,11 +242,13 @@ contract ToorToken is ERC20Basic, Ownable {
             uint256 founderCat2 = tokensToVest / 8;
 
             // If they have rewards pending, allocate those first
-            addReward(founder1);
-            addReward(founder2);
-            addReward(founder3);
-            addReward(founder4);
-            addReward(founder5);
+            if (!rewardGenerationComplete) {
+                addReward(founder1);
+                addReward(founder2);
+                addReward(founder3);
+                addReward(founder4);
+                addReward(founder5);
+            }
 
             // Increase total supply by the number of tokens being vested
             increaseTotalSupply(tokensToVest);
