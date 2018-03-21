@@ -111,6 +111,10 @@ contract ToorToken is ERC20Basic, Ownable {
         // tokenGenInterval = 240;  // This is 4 mins
         // uint256 timeToGenAllTokens = 1752000; // roughly 20 days in seconds
 
+        // This is for 2 days
+        // tokenGenInterval = 20;
+        // uint256 timeToGenAllTokens = 172800;
+
         rewardGenerationComplete = false;
         
         // Mint initial tokens
@@ -296,14 +300,17 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     function tokensOwed(address owner) public view returns (uint256) {
-        uint256 lastInt = accounts[owner].lastInterval;
+        // This array is introduced to circumvent stack depth issues
+        uint256[10] memory tempArray;
+
+        tempArray[0] = accounts[owner].lastInterval; // lastInt
         // Once the specified address has received all possible rewards, don't calculate anything
-        if (lastInt >= finalIntervalForTokenGen) {
+        if (tempArray[0] >= finalIntervalForTokenGen) {
             return 0;
         }
 
-        uint256 bal = accounts[owner].balance;
-        uint256 tokensHeld = bal;
+        tempArray[1] = accounts[owner].balance; // bal
+        tempArray[2] = tempArray[1]; //tokensHeld
         uint256 intPerWin = intervalsPerWindow;
         uint256 totalRateWinds = totalRateWindows;
         uint256 currInterval = intervalAtTime(now);
@@ -311,7 +318,7 @@ contract ToorToken is ERC20Basic, Ownable {
         mapping(uint256 => uint256) ratByYear = ratesByYear;
         uint256 ratMultiplier = rateMultiplier;
 
-        uint256 minRateWindow = (lastInt / intPerWin) + 1;
+        uint256 minRateWindow = (tempArray[0] / intPerWin) + 1;
         uint256 maxRateWindow = (currInterval / intPerWin) + 1;
         if (maxRateWindow > totalRateWinds) {
             maxRateWindow = totalRateWinds;
@@ -319,23 +326,23 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // Loop through pending periods of rewards, and calculate the total balance user should hold
         for (uint256 rateWindow = minRateWindow; rateWindow <= maxRateWindow; rateWindow++) {
-            uint256 intervals = getIntervalsForWindow(rateWindow, lastInt, currInterval, intPerWin);
+            uint256 intervals = getIntervalsForWindow(rateWindow, tempArray[0], currInterval, intPerWin);
 
             // This part is to ensure we don't overflow when rewards are pending for a large number of intervals
             // Loop through interval in batches
             while (intervals > 0) {
                 if (intervals >= intPerBatch) {
-                    tokensHeld = (tokensHeld * (ratByYear[rateWindow] ** intPerBatch)) / (ratMultiplier ** intPerBatch);
+                    tempArray[2] = (tempArray[2] * (ratByYear[rateWindow] ** intPerBatch)) / (ratMultiplier ** intPerBatch);
                     intervals -= intPerBatch;
                 } else {
-                    tokensHeld = (tokensHeld * (ratByYear[rateWindow] ** intervals)) / (ratMultiplier ** intervals);
+                    tempArray[2] = (tempArray[2] * (ratByYear[rateWindow] ** intervals)) / (ratMultiplier ** intervals);
                     intervals = 0;
                 }
             }            
         }
 
         // Rewards owed are the total balance that user SHOULD have minus what they currently have
-        return (tokensHeld - bal);
+        return (tempArray[2] - tempArray[1]);
     }
 
     function minMaxWindows(address owner) public view returns (uint256 min, uint256 max) {
