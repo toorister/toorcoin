@@ -111,9 +111,9 @@ contract ToorToken is ERC20Basic, Ownable {
         // tokenGenInterval = 240;  // This is 4 mins
         // uint256 timeToGenAllTokens = 1752000; // roughly 20 days in seconds
 
-        // This is for 2 days
+        // This is for 5.7 hours
         // tokenGenInterval = 20;
-        // uint256 timeToGenAllTokens = 172800;
+        // uint256 timeToGenAllTokens = 20800;
 
         rewardGenerationComplete = false;
         
@@ -175,38 +175,52 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     function transfer(address _to, uint256 _value) canTransfer(_to) public returns (bool) {
-        uint256 tokensOwedSender = tokensOwed(msg.sender);
-        require(_value <= (balanceOfBasic(msg.sender) + tokensOwedSender)); // Sender should have the number of tokens they want to send
+        uint256 tokensOwedSender = 0;
+        uint256 tokensOwedReceiver = 0;
+        uint256 balSender = balanceOfBasic(msg.sender);
 
         // Distribute rewards tokens first
         if (!rewardGenerationComplete) {
-            addReward(_to);
-            addReward(msg.sender, tokensOwedSender);
+            tokensOwedSender = tokensOwed(msg.sender);
+            require(_value <= (balSender + tokensOwedSender)); // Sender should have the number of tokens they want to send
+
+            tokensOwedReceiver = tokensOwed(_to);
+
+            // If there were tokens owed, increase total supply accordingly
+            if ((tokensOwedSender + tokensOwedReceiver) > 0) {
+                increaseTotalSupply(tokensOwedSender + tokensOwedReceiver); // This will break if total exceeds max cap
+                pendingRewardsToMint -= (tokensOwedSender + tokensOwedReceiver);
+            }
+
+            // If there were tokens owed, raise mint events for them
+            raiseEventIfMinted(msg.sender, tokensOwedSender);
+            raiseEventIfMinted(_to, tokensOwedReceiver);
+        } else {
+            require(_value <= balSender);
         }
         
-        accounts[msg.sender].balance -= _value;
-        accounts[_to].balance += _value;
+        // Update balances of sender and receiver
+        accounts[msg.sender].balance = balSender + tokensOwedSender - _value;
+        accounts[_to].balance += (tokensOwedReceiver + _value);
+
+        // Update last intervals for sender and receiver
+        uint256 currInt = intervalAtTime(now);
+        accounts[msg.sender].lastInterval = currInt;
+        accounts[_to].lastInterval = currInt;
 
         Transfer(msg.sender, _to, _value);
         return true;
     }
 
+    function raiseEventIfMinted(address owner, uint256 tokensToReward) private returns (bool) {
+        if (tokensToReward > 0) {
+            generateMintEvents(owner, tokensToReward);
+        }
+    }
+
     function addReward(address owner) private returns (bool) {
         uint256 tokensToReward = tokensOwed(owner);
 
-        if (tokensToReward > 0) {
-            increaseTotalSupply(tokensToReward); // This will break if total supply exceeds max cap. Should never happen though as tokensOwed checks for this condition
-            accounts[owner].balance += tokensToReward;
-            accounts[owner].lastInterval = intervalAtTime(now);
-            pendingRewardsToMint -= tokensToReward; // This helps track rounding errors when computing rewards
-            generateMintEvents(owner, tokensToReward);
-        }
-
-        return true;
-    }
-
-    // This overloaded method doesn't compute rewards and just uses what's passed in
-    function addReward(address owner, uint256 tokensToReward) private returns (bool) {
         if (tokensToReward > 0) {
             increaseTotalSupply(tokensToReward); // This will break if total supply exceeds max cap. Should never happen though as tokensOwed checks for this condition
             accounts[owner].balance += tokensToReward;
