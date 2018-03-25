@@ -118,10 +118,10 @@ contract ToorToken is ERC20Basic, Ownable {
         rewardGenerationComplete = false;
         
         // Mint initial tokens
-        accounts[company].balance = (initialSupply_ * 75) / 100; // 75% of initial balance goes to bounty
+        accounts[company].balance = (initialSupply_ * 60) / 100; // 60% of initial balance goes to Company
         accounts[company].lastInterval = 0;
         generateMintEvents(company,accounts[company].balance);
-        accounts[bounty].balance = (initialSupply_ * 25) / 100; // 25% of inital balance goes to company expenses
+        accounts[bounty].balance = (initialSupply_ * 40) / 100; // 40% of inital balance goes to Bounty
         accounts[bounty].lastInterval = 0;
         generateMintEvents(bounty,accounts[bounty].balance);
 
@@ -141,30 +141,26 @@ contract ToorToken is ERC20Basic, Ownable {
     
     function allocatedSupply() public view returns (uint256) {
         uint256 totSupply = initialSupply_;
+        uint256 vestingPerMonth = (totalVestingPool * 15) / 100;
         uint256 currInterval = intervalAtTime(now);
         uint256 startInterval = 0;
         uint256 cliffInterval = intervalAtTime(startTime + cliff);
-        uint256 cliffVestInterval = intervalAtTime(startTime + cliff + vestingPeriod);
-        uint256 intPerWind = intervalsPerWindow;
 
-        // Calculate and add rewards specifically for the first year
-        totSupply = validate(1, startInterval, currInterval, intPerWind) * totSupply * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, startInterval, currInterval, intPerWind));
-        totSupply += validate(1, cliffInterval, currInterval, intPerWind) * (totalVestingPool / 2) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, cliffInterval, currInterval, intPerWind));
-        totSupply += validate(1, cliffVestInterval, currInterval, intPerWind) * (totalVestingPool / 4) * ((ratesByYear[1] / rateMultiplier) ** getIntervalsForWindow(1, cliffVestInterval, currInterval, intPerWind));
-        
-        // One currInterval is greater than intervalsPerWindow, add the final vesting installment
-        if (currInterval > intPerWind) {
-            totSupply += (totalVestingPool / 4);
+        // This adds reward tokens rewarded for initial supply until now
+        totSupply += tokensOwedByInterval(initialSupply_, startInterval, currInterval);
+
+        // This adds tokens rewarded for tokens vesting on cliff onwards
+        if (now >= cliff) {
+            totSupply += (vestingPerMonth * 6);
+            totSupply += tokensOwedByInterval((vestingPerMonth * 6), cliffInterval, currInterval);
         }
 
-        // The second year onwards, there is no increase in token supply through vesting. So simply applying 1 rate for the year will work
-        uint256 maxRateWindow = (currInterval / intPerWind) + 1;
-        if (maxRateWindow > totalRateWindows) {
-            maxRateWindow = totalRateWindows; // If you changes this, change TokensOwed function also
-        }
-
-        for (uint rateWindow = 2; rateWindow <= maxRateWindow; rateWindow++) {
-            totSupply = validate(rateWindow, intPerWind * (rateWindow - 1), currInterval, intPerWind) * totSupply * ((ratesByYear[rateWindow] / rateMultiplier) ** getIntervalsForWindow(rateWindow, intPerWind * (rateWindow - 1), currInterval, intPerWind));
+        // This adds the token rewards for tokens vesting after the cliff onwards
+        for (uint256 installment = 1; installment <= 5; installment++) {
+            if (now >= (startTime + cliff + (installment * vestingPeriod))) {
+                totSupply += vestingPerMonth;
+                totSupply += tokensOwedByInterval(vestingPerMonth, intervalAtTime(startTime + cliff + (installment * vestingPeriod)), currInterval);
+            }
         }
 
         return totSupply;
