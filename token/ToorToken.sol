@@ -72,26 +72,26 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // Setup the token staking reward percentage per year
         rateMultiplier = 10**14;
-        ratesByYear[1] = 1.00066968526012 * 10**14;
-        ratesByYear[2] = 1.00046636022513 * 10**14;
-        ratesByYear[3] = 1.00039840345596 * 10**14;
-        ratesByYear[4] = 1.00034775593764 * 10**14;
-        ratesByYear[5] = 1.00030854533529 * 10**14;
-        ratesByYear[6] = 1.00027728778505 * 10**14;
-        ratesByYear[7] = 1.00025178487441 * 10**14;
-        ratesByYear[8] = 1.00023058052456 * 10**14;
-        ratesByYear[9] = 1.00021267190991 * 10**14;
-        ratesByYear[10] = 1.00019734575885 * 10**14;
-        ratesByYear[11] = 1.00018408084667 * 10**14;
-        ratesByYear[12] = 1.00017248741666 * 10**14;
-        ratesByYear[13] = 1.00016226817746 * 10**14;
-        ratesByYear[14] = 1.0001531924111 * 10**14;
-        ratesByYear[15] = 1.00014507832187 * 10**14;
-        ratesByYear[16] = 1.00013778071947 * 10**14;
-        ratesByYear[17] = 1.00013118224552 * 10**14;
-        ratesByYear[18] = 1.00012518700852 * 10**14;
-        ratesByYear[19] = 1.00011971588938 * 10**14;
-        ratesByYear[20] = 1.00011470302747 * 10**14;
+        ratesByYear[1] = 1.00466125247859 * 10**14;
+        ratesByYear[2] = 1.00327808818413 * 10**14;
+        ratesByYear[3] = 1.00279984113421 * 10**14;
+        ratesByYear[4] = 1.00244353542178 * 10**14;
+        ratesByYear[5] = 1.00216776307204 * 10**14;
+        ratesByYear[6] = 1.00194797199061 * 10**14;
+        ratesByYear[7] = 1.00176867594624 * 10**14;
+        ratesByYear[8] = 1.00161962151688 * 10**14;
+        ratesByYear[9] = 1.00149374903201 * 10**14;
+        ratesByYear[10] = 1.00138603842211 * 10**14;
+        ratesByYear[11] = 1.00129282200637 * 10**14;
+        ratesByYear[12] = 1.00121135767832 * 10**14;
+        ratesByYear[13] = 1.00113955418154 * 10**14;
+        ratesByYear[14] = 1.00107578877672 * 10**14;
+        ratesByYear[15] = 1.00101878296575 * 10**14;
+        ratesByYear[16] = 1.00096751578847 * 10**14;
+        ratesByYear[17] = 1.00092116207264 * 10**14;
+        ratesByYear[18] = 1.00087904764088 * 10**14;
+        ratesByYear[19] = 1.00084061627889 * 10**14;
+        ratesByYear[20] = 1.00080540501263 * 10**14;
 
         totalRateWindows = 20;
         
@@ -104,8 +104,8 @@ contract ToorToken is ERC20Basic, Ownable {
         intervalsPerBatch = 3;
         
         // This is for 20 years
-        tokenGenInterval = 60;  // This is 1 min in seconds
-        uint256 timeToGenAllTokens = 630720000; // 20 years in seconds
+        tokenGenInterval = 603936;  // This is roughly 1 week in seconds
+        uint256 timeToGenAllTokens = 628093440; // This is close to 20 years in seconds
 
         // This is for 20 days
         // tokenGenInterval = 240;  // This is 4 mins
@@ -594,8 +594,6 @@ contract ToorToken is ERC20Basic, Ownable {
     // This modifier is used on the transfer method and defines where tokens CANNOT be sent
     modifier canTransfer(address _to) {
         require(_to != address(0)); // Transfer should not be allowed to burn tokens
-        // This is to ensure that no tokens can be transferred to founder accounts, as that would corrupt reward calculation
-        require((_to != founder1) && (_to != founder2) && (_to != founder3) && (_to != founder4) && (_to != founder5)); 
         _;
     }
 }
