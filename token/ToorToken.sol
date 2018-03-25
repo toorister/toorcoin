@@ -29,7 +29,7 @@ contract ToorToken is ERC20Basic, Ownable {
 
     uint256 initialSupply_;
     uint256 totalSupply_;
-    uint256 maxSupply_;
+    uint256 public maxSupply;
     uint256 public startTime;
     uint256 pendingRewardsToMint;
 
@@ -95,7 +95,7 @@ contract ToorToken is ERC20Basic, Ownable {
 
         totalRateWindows = 20;
         
-        maxSupply_ = 100000000 * 10**18;
+        maxSupply = 100000000 * 10**18;
         initialSupply_ = 13500000 * 10**18;
         pendingInstallments = 6;
         paidInstallments = 0;
@@ -104,16 +104,12 @@ contract ToorToken is ERC20Basic, Ownable {
         intervalsPerBatch = 3;
         
         // This is for 20 years
-        tokenGenInterval = 603936;  // This is roughly 1 week in seconds
-        uint256 timeToGenAllTokens = 628093440; // This is close to 20 years in seconds
-
-        // This is for 20 days
-        // tokenGenInterval = 240;  // This is 4 mins
-        // uint256 timeToGenAllTokens = 1752000; // roughly 20 days in seconds
+        // tokenGenInterval = 603936;  // This is roughly 1 week in seconds
+        // uint256 timeToGenAllTokens = 628093440; // This is close to 20 years in seconds
 
         // This is for 5.7 hours
-        // tokenGenInterval = 20;
-        // uint256 timeToGenAllTokens = 20800;
+        tokenGenInterval = 60;
+        uint256 timeToGenAllTokens = 62400;
 
         rewardGenerationComplete = false;
         
@@ -126,7 +122,7 @@ contract ToorToken is ERC20Basic, Ownable {
         generateMintEvents(bounty,accounts[bounty].balance);
 
         pendingVestingPool = totalVestingPool;
-        pendingRewardsToMint = maxSupply_ - initialSupply_ - totalVestingPool;
+        pendingRewardsToMint = maxSupply - initialSupply_ - totalVestingPool;
         totalSupply_ = initialSupply_;
         vestingPeriod = timeToGenAllTokens / (totalRateWindows * 12); // One vesting period is a quarter. 80 quarters in 20 years
         cliff = vestingPeriod * 6; // Cliff is two vesting periods aka 6 months roughly
@@ -164,10 +160,6 @@ contract ToorToken is ERC20Basic, Ownable {
         }
 
         return totSupply;
-    }
-
-    function maxSupply() public view returns (uint256) {
-        return maxSupply_;
     }
 
     function transfer(address _to, uint256 _value) canTransfer(_to) public returns (bool) {
@@ -253,14 +245,12 @@ contract ToorToken is ERC20Basic, Ownable {
         founderCat[0] = 0;
         founderCat[1] = 0;
 
-        uint256[5] memory founderBal;
         uint256[5] memory origFounderBal;
         origFounderBal[0] = accounts[founder1].balance;
         origFounderBal[1] = accounts[founder2].balance;
         origFounderBal[2] = accounts[founder3].balance;
         origFounderBal[3] = accounts[founder4].balance;
         origFounderBal[4] = accounts[founder5].balance;
-        founderBal = origFounderBal;
 
         uint256[2] memory rewardCat;
         rewardCat[0] = 0;
@@ -288,11 +278,11 @@ contract ToorToken is ERC20Basic, Ownable {
             }
 
             // Vest tokens for each of the founders, this includes any rewards pending since cliff passed
-            founderBal[0] += founderCat[0];
-            founderBal[1] += founderCat[0];
-            founderBal[2] += founderCat[0];
-            founderBal[3] += founderCat[1];
-            founderBal[4] += founderCat[1];
+            accounts[founder1].balance += founderCat[0];
+            accounts[founder2].balance += founderCat[0];
+            accounts[founder3].balance += founderCat[0];
+            accounts[founder4].balance += founderCat[1];
+            accounts[founder5].balance += founderCat[1];
 
             totalTokensToVest = tokensToVest;
 
@@ -336,11 +326,11 @@ contract ToorToken is ERC20Basic, Ownable {
                     totalTokensToVest += ((3 * rewardCat[0]) + (2 * rewardCat[1]));
 
                     // Vest tokens for each of the founders, this includes any rewards pending since vest interval passed
-                    founderBal[0] += founderCat[0];
-                    founderBal[1] += founderCat[0];
-                    founderBal[2] += founderCat[0];
-                    founderBal[3] += founderCat[1];
-                    founderBal[4] += founderCat[1];
+                    accounts[founder1].balance += founderCat[0];
+                    accounts[founder2].balance += founderCat[0];
+                    accounts[founder3].balance += founderCat[0];
+                    accounts[founder4].balance += founderCat[1];
+                    accounts[founder5].balance += founderCat[1];
                 }
             }
 
@@ -354,13 +344,6 @@ contract ToorToken is ERC20Basic, Ownable {
         // Reduce pendingVestingPool and update pending and paid installments
         pendingVestingPool -= totalTokensToVest;
 
-        // Vest tokens for each of the founders
-        accounts[founder1].balance = founderBal[0];
-        accounts[founder2].balance = founderBal[1];
-        accounts[founder3].balance = founderBal[2];
-        accounts[founder4].balance = founderBal[3];
-        accounts[founder5].balance = founderBal[4];
-
         accounts[founder1].lastInterval = currInterval;
         accounts[founder2].lastInterval = currInterval;
         accounts[founder3].lastInterval = currInterval;
@@ -368,15 +351,15 @@ contract ToorToken is ERC20Basic, Ownable {
         accounts[founder5].lastInterval = currInterval;
 
         // Create events for token generation
-        generateMintEvents(founder1, (founderBal[0] - origFounderBal[0]));
-        generateMintEvents(founder2, (founderBal[1] - origFounderBal[1]));
-        generateMintEvents(founder3, (founderBal[2] - origFounderBal[2]));
-        generateMintEvents(founder4, (founderBal[3] - origFounderBal[3]));
-        generateMintEvents(founder5, (founderBal[4] - origFounderBal[4]));
+        generateMintEvents(founder1, (accounts[founder1].balance - origFounderBal[0]));
+        generateMintEvents(founder2, (accounts[founder2].balance - origFounderBal[1]));
+        generateMintEvents(founder3, (accounts[founder3].balance - origFounderBal[2]));
+        generateMintEvents(founder4, (accounts[founder4].balance - origFounderBal[3]));
+        generateMintEvents(founder5, (accounts[founder5].balance - origFounderBal[4]));
     }
 
     function increaseTotalSupply (uint256 tokens) private returns (bool) {
-        require ((totalSupply_ + tokens) <= maxSupply_);
+        require ((totalSupply_ + tokens) <= maxSupply);
         totalSupply_ += tokens;
 
         return true;
@@ -392,24 +375,19 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     function tokensOwedByInterval(uint256 balance, uint256 lastInterval, uint256 currInterval) public view returns (uint256) {
-        // This array is introduced to circumvent stack depth issues
-        uint256[3] memory tempArray;
-        tempArray[0] = lastInterval; // lastInt
-
         // Once the specified address has received all possible rewards, don't calculate anything
-        if (tempArray[0] >= currInterval || tempArray[0] >= finalIntervalForTokenGen) {
+        if (lastInterval >= currInterval || lastInterval >= finalIntervalForTokenGen) {
             return 0;
         }
 
-        tempArray[1] = balance; // bal
-        tempArray[2] = balance; //tokensHeld
+        uint256 tokensHeld = balance; //tokensHeld
         uint256 intPerWin = intervalsPerWindow;
         uint256 totalRateWinds = totalRateWindows;
         uint256 intPerBatch = intervalsPerBatch;
         mapping(uint256 => uint256) ratByYear = ratesByYear;
         uint256 ratMultiplier = rateMultiplier;
 
-        uint256 minRateWindow = (tempArray[0] / intPerWin) + 1;
+        uint256 minRateWindow = (lastInterval / intPerWin) + 1;
         uint256 maxRateWindow = (currInterval / intPerWin) + 1;
         if (maxRateWindow > totalRateWinds) {
             maxRateWindow = totalRateWinds;
@@ -417,30 +395,23 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // Loop through pending periods of rewards, and calculate the total balance user should hold
         for (uint256 rateWindow = minRateWindow; rateWindow <= maxRateWindow; rateWindow++) {
-            uint256 intervals = getIntervalsForWindow(rateWindow, tempArray[0], currInterval, intPerWin);
+            uint256 intervals = getIntervalsForWindow(rateWindow, lastInterval, currInterval, intPerWin);
 
             // This part is to ensure we don't overflow when rewards are pending for a large number of intervals
             // Loop through interval in batches
             while (intervals > 0) {
                 if (intervals >= intPerBatch) {
-                    tempArray[2] = (tempArray[2] * (ratByYear[rateWindow] ** intPerBatch)) / (ratMultiplier ** intPerBatch);
+                    tokensHeld = (tokensHeld * (ratByYear[rateWindow] ** intPerBatch)) / (ratMultiplier ** intPerBatch);
                     intervals -= intPerBatch;
                 } else {
-                    tempArray[2] = (tempArray[2] * (ratByYear[rateWindow] ** intervals)) / (ratMultiplier ** intervals);
+                    tokensHeld = (tokensHeld * (ratByYear[rateWindow] ** intervals)) / (ratMultiplier ** intervals);
                     intervals = 0;
                 }
             }            
         }
 
         // Rewards owed are the total balance that user SHOULD have minus what they currently have
-        return (tempArray[2] - tempArray[1]);
-    }
-
-    function minMaxWindows(address owner) public view returns (uint256 min, uint256 max) {
-        uint256 minRateWindow = (accounts[owner].lastInterval / intervalsPerWindow) + 1;
-        uint256 maxRateWindow = (intervalAtTime(now) / intervalsPerWindow) + 1;
-
-        return (minRateWindow, maxRateWindow);
+        return (tokensHeld - balance);
     }
 
     function intervalAtTime(uint256 time) public view returns (uint256) {
@@ -460,18 +431,8 @@ contract ToorToken is ERC20Basic, Ownable {
         }
     }
 
-    function validate(uint256 rateWindow, uint256 lastInterval, uint256 currInterval, uint256 intPerWind) public view returns (uint256) {
-        if ((rateWindow * intPerWind) < lastInterval) {
-            return 0; // This means that the window has already been paid for
-        } else if (currInterval < ((rateWindow - 1) * intPerWind)) {
-            return 0; // This means that we are not at that window yet
-        } else {
-            return 1;
-        }
-    }
-
     // This function checks how many intervals for a given window do we owe tokens to someone for 
-    function getIntervalsForWindow(uint256 rateWindow, uint256 lastInterval, uint256 currInterval, uint256 intPerWind) public view returns (uint256) {
+    function getIntervalsForWindow(uint256 rateWindow, uint256 lastInterval, uint256 currInterval, uint256 intPerWind) public pure returns (uint256) {
         // If lastInterval for holder falls in a window previous to current one, the lastInterval for the window passed into the function would be the window start interval
         if (lastInterval < ((rateWindow - 1) * intPerWind)) {
             lastInterval = ((rateWindow - 1) * intPerWind);
