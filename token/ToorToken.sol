@@ -97,7 +97,7 @@ contract ToorToken is ERC20Basic, Ownable {
         
         maxSupply_ = 100000000 * 10**18;
         initialSupply_ = 13500000 * 10**18;
-        pendingInstallments = 4;
+        pendingInstallments = 6;
         paidInstallments = 0;
         totalVestingPool = 4500000 * 10**18;
         startTime = now;
@@ -128,8 +128,8 @@ contract ToorToken is ERC20Basic, Ownable {
         pendingVestingPool = totalVestingPool;
         pendingRewardsToMint = maxSupply_ - initialSupply_ - totalVestingPool;
         totalSupply_ = initialSupply_;
-        vestingPeriod = timeToGenAllTokens / (totalRateWindows * 4); // One vesting period is a quarter. 80 quarters in 20 years
-        cliff = vestingPeriod * 2; // Cliff is two vesting periods aka 6 months roughly
+        vestingPeriod = timeToGenAllTokens / (totalRateWindows * 12); // One vesting period is a quarter. 80 quarters in 20 years
+        cliff = vestingPeriod * 6; // Cliff is two vesting periods aka 6 months roughly
         finalIntervalForTokenGen = timeToGenAllTokens / tokenGenInterval;
         intervalsPerWindow = finalIntervalForTokenGen / totalRateWindows;
     }
@@ -235,75 +235,148 @@ contract ToorToken is ERC20Basic, Ownable {
     // This function is to vest tokens to the founding team
     function vestTokens() public returns (bool) {
         require(pendingInstallments > 0);
-        require(paidInstallments < 4);
+        require(paidInstallments < 6);
         require(pendingVestingPool > 0);
         require(now - startTime > cliff);
 
-        uint256 currInterval = intervalAtTime(now);
-
-        // Calculate the pending installments to pay based on current time
-        uint256 installments = (currInterval * tokenGenInterval) / vestingPeriod;
-        uint256 installmentsToPay = installments - paidInstallments;
-
-        // If there are no installments to pay, stop here
-        require (installmentsToPay > 0);
-
-        if (installmentsToPay > pendingInstallments) {
-            installmentsToPay = pendingInstallments;
+        // If they have rewards pending, allocate those first
+        if (!rewardGenerationComplete) {
+            addReward(founder1);
+            addReward(founder2);
+            addReward(founder3);
+            addReward(founder4);
+            addReward(founder5);
         }
 
-        // Loop through installments to pay, so that we can add token holding rewards as we go along
-        for (uint256 installment = 1; installment <= installmentsToPay; installment++) {
-            uint256 tokensToVest = totalVestingPool / 4;
+        uint256 currInterval = intervalAtTime(now);
+        uint256 tokensToVest = 0;
+        uint256 totalTokensToVest = 0;
+        uint256 totalPool = totalVestingPool;
 
-            uint256 founderCat1 = tokensToVest / 4;
-            uint256 founderCat2 = tokensToVest / 8;
+        uint256[2] memory founderCat;
+        founderCat[0] = 0;
+        founderCat[1] = 0;
 
-            // If they have rewards pending, allocate those first
-            if (!rewardGenerationComplete) {
-                addReward(founder1);
-                addReward(founder2);
-                addReward(founder3);
-                addReward(founder4);
-                addReward(founder5);
+        uint256[5] memory founderBal;
+        uint256[5] memory origFounderBal;
+        origFounderBal[0] = accounts[founder1].balance;
+        origFounderBal[1] = accounts[founder2].balance;
+        origFounderBal[2] = accounts[founder3].balance;
+        origFounderBal[3] = accounts[founder4].balance;
+        origFounderBal[4] = accounts[founder5].balance;
+        founderBal = origFounderBal;
+
+        uint256[2] memory rewardCat;
+        rewardCat[0] = 0;
+        rewardCat[1] = 0;
+
+        // Pay out cliff
+        if (paidInstallments < 1) {
+            uint256 intervalAtCliff = intervalAtTime(cliff);
+            tokensToVest = totalPool / 4;
+
+            founderCat[0] = tokensToVest / 4;
+            founderCat[1] = tokensToVest / 8;
+
+            // This condition checks if there are any rewards to pay after the cliff
+            if (currInterval > intervalAtCliff && !rewardGenerationComplete) {
+                rewardCat[0] = tokensOwedByInterval(founderCat[0], intervalAtCliff, currInterval);
+                rewardCat[1] = tokensOwedByInterval(founderCat[1], intervalAtCliff, currInterval);
+
+                // Add rewards to founder tokens being vested
+                founderCat[0] += rewardCat[0];
+                founderCat[1] += rewardCat[1];
+
+                // Increase total amount of tokens to vest
+                tokensToVest += ((3 * rewardCat[0]) + (2 * rewardCat[1]));
             }
 
-            // Increase total supply by the number of tokens being vested
-            increaseTotalSupply(tokensToVest);
-            
-            // Vest tokens for each of the founders
-            accounts[founder1].balance += founderCat1;
-            accounts[founder2].balance += founderCat1;
-            accounts[founder3].balance += founderCat1;
-            accounts[founder4].balance += founderCat2;
-            accounts[founder5].balance += founderCat2;
+            // Vest tokens for each of the founders, this includes any rewards pending since cliff passed
+            founderBal[0] += founderCat[0];
+            founderBal[1] += founderCat[0];
+            founderBal[2] += founderCat[0];
+            founderBal[3] += founderCat[1];
+            founderBal[4] += founderCat[1];
 
-            // Reduce pendingVestingPool and update pending and paid installments
-            pendingVestingPool -= tokensToVest;
+            totalTokensToVest = tokensToVest;
+
+            // Update pending and paid installments
             pendingInstallments -= 1;
             paidInstallments += 1;
+        }
 
-            // Set last interval to the end of the installment period
-            uint256 intervalToSet = (vestingPeriod * paidInstallments) / tokenGenInterval;
+        // Calculate the pending non-cliff installments to pay based on current time
+        uint256 installments = ((currInterval * tokenGenInterval) - cliff) / vestingPeriod;
+        uint256 installmentsToPay = installments + 1 - paidInstallments;
 
-            // In case last interval is less than cliff period, set cliff as the last interval. This is to ensure no rewards are paid for pre-cliff vesting periods
-            if (intervalToSet < intervalAtTime(cliff)) {
-                intervalToSet = intervalAtTime(cliff);
+        // If there are no installments to pay, skip this
+        if (installmentsToPay > 0) {
+            if (installmentsToPay > pendingInstallments) {
+                installmentsToPay = pendingInstallments;
             }
 
-            accounts[founder1].lastInterval = intervalToSet;
-            accounts[founder2].lastInterval = intervalToSet;
-            accounts[founder3].lastInterval = intervalToSet;
-            accounts[founder4].lastInterval = intervalToSet;
-            accounts[founder5].lastInterval = intervalToSet;
+            tokensToVest = (totalPool * 15) / 100;
 
-            // Create events for token generation
-            generateMintEvents(founder1, founderCat1);
-            generateMintEvents(founder2, founderCat1);
-            generateMintEvents(founder3, founderCat1);
-            generateMintEvents(founder4, founderCat2);
-            generateMintEvents(founder5, founderCat2);
+            founderCat[0] = tokensToVest / 4;
+            founderCat[1] = tokensToVest / 8;
+
+            uint256 intervalsAtVest = 0;
+
+            // Loop through installments to pay, so that we can add token holding rewards as we go along
+            for (uint256 installment = 1; installment <= installmentsToPay; installment++) {
+                intervalsAtVest = intervalAtTime(cliff + (installment * vestingPeriod));
+
+                // This condition checks if there are any rewards to pay after the cliff
+                if (currInterval > intervalsAtVest && !rewardGenerationComplete) {
+                    rewardCat[0] = tokensOwedByInterval(founderCat[0], intervalsAtVest, currInterval);
+                    rewardCat[1] = tokensOwedByInterval(founderCat[1], intervalsAtVest, currInterval);
+
+                    // Add rewards to founder tokens being vested
+                    founderCat[0] += rewardCat[0];
+                    founderCat[1] += rewardCat[1];
+
+                    // Increase total amount of tokens to vest
+                    totalTokensToVest += tokensToVest;
+                    totalTokensToVest += ((3 * rewardCat[0]) + (2 * rewardCat[1]));
+
+                    // Vest tokens for each of the founders, this includes any rewards pending since vest interval passed
+                    founderBal[0] += founderCat[0];
+                    founderBal[1] += founderCat[0];
+                    founderBal[2] += founderCat[0];
+                    founderBal[3] += founderCat[1];
+                    founderBal[4] += founderCat[1];
+                }
+            }
+
+            pendingInstallments -= installmentsToPay;
+            paidInstallments += installmentsToPay;
         }
+
+        // Increase total supply by the number of tokens being vested
+        increaseTotalSupply(totalTokensToVest);
+            
+        // Reduce pendingVestingPool and update pending and paid installments
+        pendingVestingPool -= totalTokensToVest;
+
+        // Vest tokens for each of the founders
+        accounts[founder1].balance = founderBal[0];
+        accounts[founder2].balance = founderBal[1];
+        accounts[founder3].balance = founderBal[2];
+        accounts[founder4].balance = founderBal[3];
+        accounts[founder5].balance = founderBal[4];
+
+        accounts[founder1].lastInterval = currInterval;
+        accounts[founder2].lastInterval = currInterval;
+        accounts[founder3].lastInterval = currInterval;
+        accounts[founder4].lastInterval = currInterval;
+        accounts[founder5].lastInterval = currInterval;
+
+        // Create events for token generation
+        generateMintEvents(founder1, (founderBal[0] - origFounderBal[0]));
+        generateMintEvents(founder2, (founderBal[1] - origFounderBal[1]));
+        generateMintEvents(founder3, (founderBal[2] - origFounderBal[2]));
+        generateMintEvents(founder4, (founderBal[3] - origFounderBal[3]));
+        generateMintEvents(founder5, (founderBal[4] - origFounderBal[4]));
     }
 
     function increaseTotalSupply (uint256 tokens) private returns (bool) {
@@ -315,19 +388,27 @@ contract ToorToken is ERC20Basic, Ownable {
 
     function tokensOwed(address owner) public view returns (uint256) {
         // This array is introduced to circumvent stack depth issues
-        uint256[10] memory tempArray;
+        uint256 currInterval = intervalAtTime(now);
+        uint256 lastInterval = accounts[owner].lastInterval;
+        uint256 balance = accounts[owner].balance;
 
-        tempArray[0] = accounts[owner].lastInterval; // lastInt
+        return tokensOwedByInterval(balance, lastInterval, currInterval);
+    }
+
+    function tokensOwedByInterval(uint256 balance, uint256 lastInterval, uint256 currInterval) public view returns (uint256) {
+        // This array is introduced to circumvent stack depth issues
+        uint256[3] memory tempArray;
+        tempArray[0] = lastInterval; // lastInt
+
         // Once the specified address has received all possible rewards, don't calculate anything
-        if (tempArray[0] >= finalIntervalForTokenGen) {
+        if (tempArray[0] >= currInterval || tempArray[0] >= finalIntervalForTokenGen) {
             return 0;
         }
 
-        tempArray[1] = accounts[owner].balance; // bal
-        tempArray[2] = tempArray[1]; //tokensHeld
+        tempArray[1] = balance; // bal
+        tempArray[2] = balance; //tokensHeld
         uint256 intPerWin = intervalsPerWindow;
         uint256 totalRateWinds = totalRateWindows;
-        uint256 currInterval = intervalAtTime(now);
         uint256 intPerBatch = intervalsPerBatch;
         mapping(uint256 => uint256) ratByYear = ratesByYear;
         uint256 ratMultiplier = rateMultiplier;
@@ -373,7 +454,14 @@ contract ToorToken is ERC20Basic, Ownable {
         }
 
         // Based on time passed in, check how many intervals have elapsed
-        return (time - startTime) / tokenGenInterval;
+        uint256 interval = (time - startTime) / tokenGenInterval;
+
+        // Return max intervals if it's greater than that time
+        if (interval > finalIntervalForTokenGen) {
+            return finalIntervalForTokenGen;
+        } else {
+            return interval;
+        }
     }
 
     function validate(uint256 rateWindow, uint256 lastInterval, uint256 currInterval, uint256 intPerWind) public view returns (uint256) {
