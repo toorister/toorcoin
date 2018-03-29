@@ -10,13 +10,9 @@ import "./Ownable.sol";
  */
 contract ToorToken is ERC20Basic, Ownable {
     // TODO LIST (NOTHING AT THE MOMENT)
-    // allocatedSupply is returning 16.75m instead of 13.5m + rewards
     // Still need to test out transfers
-    // After vesting, lastInterval for founders is still set to startTime
-    // If after 10 months, vest is run. A founder is paid rewards for 4month (based on time elapsed since 6 month cliff). However, after vesting, lastInterval would be set to 9 month.
-    // LastInterval is usually set to now. But when computing rewards, we divide by tokenGenInterval, which can sometimes be a decimal value. Handle this
     // TokenSupply at the moment is actual physical supply. But balances of owner are physical + rewards. That shows up as total amount held by people being greater than total supply on etherscan
-    // Reward being paid out at cliff vesting (after the first quarter vesting)
+    // Too many tokens being given out for vesting runs after 65 intervals (2.5m+ for founderCat1)
 
     struct Account {
         uint balance;
@@ -47,19 +43,12 @@ contract ToorToken is ERC20Basic, Ownable {
     uint256 public finalIntervalForTokenGen; // The last instance of reward calculation, after which rewards will cease
     uint256 private totalRateWindows; // This specifies the number of rate windows over the total period of time
     uint256 private intervalsPerWindow; // Total number of times we calculate rewards within 1 rate window
-    uint256 private intervalsPerBatch; // Defines the number of intervals we compute rewards for at a time
 
     // Variable to define once reward generation is complete
     bool public rewardGenerationComplete;
 
     // Ether addresses of founders and company
-    address private founder1 = 0xeD20cae0BF1FF4054E1a12bb071d41c95B5C94b5;
-    address private founder2 = 0x220Aad0b0bf12fF7245A29cbBA8fcfe72D0dE5d9;
-    address private founder3 = 0xc97dfb488407189C5b6d784678b6Dc8516Be88ca;
-    address private founder4 = 0x9fD5979af1B5048B05A0e5d8bf2362938C66c1c8;
-    address private founder5 = 0x91C3f66A7Bd302DEb55C2ffd0421D48F63DBE011;
-    address private company = 0x14278b24e40138822aD75EC740c23e3a99300DBf;
-    address private bounty = 0x21445651dD395761544eF1658C5fFd2de7Ca45aC;
+    mapping(uint256 => address) public distributionAddresses;
 
     // Events section
     event Mint(address indexed to, uint256 amount);
@@ -101,7 +90,14 @@ contract ToorToken is ERC20Basic, Ownable {
         paidInstallments = 0;
         totalVestingPool = 4500000 * 10**18;
         startTime = now;
-        intervalsPerBatch = 3;
+
+        distributionAddresses[1] = 0xeD20cae0BF1FF4054E1a12bb071d41c95B5C94b5; // founder 1
+        distributionAddresses[2] = 0x220Aad0b0bf12fF7245A29cbBA8fcfe72D0dE5d9; // founder 2
+        distributionAddresses[3] = 0xc97dfb488407189C5b6d784678b6Dc8516Be88ca; // founder 3
+        distributionAddresses[4] = 0x9fD5979af1B5048B05A0e5d8bf2362938C66c1c8; // founder 4
+        distributionAddresses[5] = 0x91C3f66A7Bd302DEb55C2ffd0421D48F63DBE011; // founder 5
+        distributionAddresses[6] = 0x14278b24e40138822aD75EC740c23e3a99300DBf; // company
+        distributionAddresses[7] = 0x21445651dD395761544eF1658C5fFd2de7Ca45aC; // bounty
         
         // This is for 20 years
         // tokenGenInterval = 603936;  // This is roughly 1 week in seconds
@@ -114,12 +110,12 @@ contract ToorToken is ERC20Basic, Ownable {
         rewardGenerationComplete = false;
         
         // Mint initial tokens
-        accounts[company].balance = (initialSupply_ * 60) / 100; // 60% of initial balance goes to Company
-        accounts[company].lastInterval = 0;
-        generateMintEvents(company,accounts[company].balance);
-        accounts[bounty].balance = (initialSupply_ * 40) / 100; // 40% of inital balance goes to Bounty
-        accounts[bounty].lastInterval = 0;
-        generateMintEvents(bounty,accounts[bounty].balance);
+        accounts[distributionAddresses[6]].balance = (initialSupply_ * 60) / 100; // 60% of initial balance goes to Company
+        accounts[distributionAddresses[6]].lastInterval = 0;
+        generateMintEvents(distributionAddresses[6],accounts[distributionAddresses[6]].balance);
+        accounts[distributionAddresses[7]].balance = (initialSupply_ * 40) / 100; // 40% of inital balance goes to Bounty
+        accounts[distributionAddresses[7]].lastInterval = 0;
+        generateMintEvents(distributionAddresses[7],accounts[distributionAddresses[7]].balance);
 
         pendingVestingPool = totalVestingPool;
         pendingRewardsToMint = maxSupply - initialSupply_ - totalVestingPool;
@@ -139,11 +135,10 @@ contract ToorToken is ERC20Basic, Ownable {
         uint256 totSupply = initialSupply_;
         uint256 vestingPerMonth = (totalVestingPool * 15) / 100;
         uint256 currInterval = intervalAtTime(now);
-        uint256 startInterval = 0;
         uint256 cliffInterval = intervalAtTime(startTime + cliff);
 
         // This adds reward tokens rewarded for initial supply until now
-        totSupply += tokensOwedByInterval(initialSupply_, startInterval, currInterval);
+        totSupply += tokensOwedByInterval(initialSupply_, 0, currInterval);
 
         // This adds tokens rewarded for tokens vesting on cliff onwards
         if (now >= cliff) {
@@ -229,11 +224,9 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // If they have rewards pending, allocate those first
         if (!rewardGenerationComplete) {
-            addReward(founder1);
-            addReward(founder2);
-            addReward(founder3);
-            addReward(founder4);
-            addReward(founder5);
+            for (uint256 i = 1; i <= 5; i++) {
+                addReward(distributionAddresses[i]);
+            }
         }
 
         uint256 currInterval = intervalAtTime(now);
@@ -246,11 +239,11 @@ contract ToorToken is ERC20Basic, Ownable {
         founderCat[1] = 0;
 
         uint256[5] memory origFounderBal;
-        origFounderBal[0] = accounts[founder1].balance;
-        origFounderBal[1] = accounts[founder2].balance;
-        origFounderBal[2] = accounts[founder3].balance;
-        origFounderBal[3] = accounts[founder4].balance;
-        origFounderBal[4] = accounts[founder5].balance;
+        origFounderBal[0] = accounts[distributionAddresses[1]].balance;
+        origFounderBal[1] = accounts[distributionAddresses[2]].balance;
+        origFounderBal[2] = accounts[distributionAddresses[3]].balance;
+        origFounderBal[3] = accounts[distributionAddresses[4]].balance;
+        origFounderBal[4] = accounts[distributionAddresses[5]].balance;
 
         uint256[2] memory rewardCat;
         rewardCat[0] = 0;
@@ -278,11 +271,11 @@ contract ToorToken is ERC20Basic, Ownable {
             }
 
             // Vest tokens for each of the founders, this includes any rewards pending since cliff passed
-            accounts[founder1].balance += founderCat[0];
-            accounts[founder2].balance += founderCat[0];
-            accounts[founder3].balance += founderCat[0];
-            accounts[founder4].balance += founderCat[1];
-            accounts[founder5].balance += founderCat[1];
+            accounts[distributionAddresses[1]].balance += founderCat[0];
+            accounts[distributionAddresses[2]].balance += founderCat[0];
+            accounts[distributionAddresses[3]].balance += founderCat[0];
+            accounts[distributionAddresses[4]].balance += founderCat[1];
+            accounts[distributionAddresses[5]].balance += founderCat[1];
 
             totalTokensToVest = tokensToVest;
 
@@ -326,11 +319,11 @@ contract ToorToken is ERC20Basic, Ownable {
                     totalTokensToVest += ((3 * rewardCat[0]) + (2 * rewardCat[1]));
 
                     // Vest tokens for each of the founders, this includes any rewards pending since vest interval passed
-                    accounts[founder1].balance += founderCat[0];
-                    accounts[founder2].balance += founderCat[0];
-                    accounts[founder3].balance += founderCat[0];
-                    accounts[founder4].balance += founderCat[1];
-                    accounts[founder5].balance += founderCat[1];
+                    accounts[distributionAddresses[1]].balance += founderCat[0];
+                    accounts[distributionAddresses[2]].balance += founderCat[0];
+                    accounts[distributionAddresses[3]].balance += founderCat[0];
+                    accounts[distributionAddresses[4]].balance += founderCat[1];
+                    accounts[distributionAddresses[5]].balance += founderCat[1];
                 }
             }
 
@@ -344,18 +337,18 @@ contract ToorToken is ERC20Basic, Ownable {
         // Reduce pendingVestingPool and update pending and paid installments
         pendingVestingPool -= totalTokensToVest;
 
-        accounts[founder1].lastInterval = currInterval;
-        accounts[founder2].lastInterval = currInterval;
-        accounts[founder3].lastInterval = currInterval;
-        accounts[founder4].lastInterval = currInterval;
-        accounts[founder5].lastInterval = currInterval;
+        accounts[distributionAddresses[1]].lastInterval = currInterval;
+        accounts[distributionAddresses[2]].lastInterval = currInterval;
+        accounts[distributionAddresses[3]].lastInterval = currInterval;
+        accounts[distributionAddresses[4]].lastInterval = currInterval;
+        accounts[distributionAddresses[5]].lastInterval = currInterval;
 
         // Create events for token generation
-        generateMintEvents(founder1, (accounts[founder1].balance - origFounderBal[0]));
-        generateMintEvents(founder2, (accounts[founder2].balance - origFounderBal[1]));
-        generateMintEvents(founder3, (accounts[founder3].balance - origFounderBal[2]));
-        generateMintEvents(founder4, (accounts[founder4].balance - origFounderBal[3]));
-        generateMintEvents(founder5, (accounts[founder5].balance - origFounderBal[4]));
+        generateMintEvents(distributionAddresses[1], (accounts[distributionAddresses[1]].balance - origFounderBal[0]));
+        generateMintEvents(distributionAddresses[2], (accounts[distributionAddresses[2]].balance - origFounderBal[1]));
+        generateMintEvents(distributionAddresses[3], (accounts[distributionAddresses[3]].balance - origFounderBal[2]));
+        generateMintEvents(distributionAddresses[4], (accounts[distributionAddresses[4]].balance - origFounderBal[3]));
+        generateMintEvents(distributionAddresses[5], (accounts[distributionAddresses[5]].balance - origFounderBal[4]));
     }
 
     function increaseTotalSupply (uint256 tokens) private returns (bool) {
@@ -383,7 +376,10 @@ contract ToorToken is ERC20Basic, Ownable {
         uint256 tokensHeld = balance; //tokensHeld
         uint256 intPerWin = intervalsPerWindow;
         uint256 totalRateWinds = totalRateWindows;
-        uint256 intPerBatch = intervalsPerBatch;
+
+        // Defines the number of intervals we compute rewards for at a time
+        uint256 intPerBatch = 3; // Hardcoded here instead of storing on blockchain to save gas
+
         mapping(uint256 => uint256) ratByYear = ratesByYear;
         uint256 ratMultiplier = rateMultiplier;
 
@@ -422,10 +418,11 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // Based on time passed in, check how many intervals have elapsed
         uint256 interval = (time - startTime) / tokenGenInterval;
-
+        uint256 finalInt = finalIntervalForTokenGen; // Assign to local to reduce gas
+        
         // Return max intervals if it's greater than that time
-        if (interval > finalIntervalForTokenGen) {
-            return finalIntervalForTokenGen;
+        if (interval > finalInt) {
+            return finalInt;
         } else {
             return interval;
         }
@@ -491,50 +488,10 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     // These set of functions allow changing of founder and company addresses
-    function setFounder1(address _to) onlyOwner public returns (bool) {
+    function setFounder(uint256 id, address _to) onlyOwner public returns (bool) {
         require(_to != address(0));
-        founder1 = _to;
+        distributionAddresses[id] = _to;
         return true;
-    }
-
-    function setFounder2(address _to) onlyOwner public returns (bool) {
-        require(_to != address(0));
-        founder2 = _to;
-        return true;
-    }
-
-    function setFounder3(address _to) onlyOwner public returns (bool) {
-        require(_to != address(0));
-        founder3 = _to;
-        return true;
-    }
-
-    function setFounder4(address _to) onlyOwner public returns (bool) {
-        require(_to != address(0));
-        founder4 = _to;
-        return true;
-    }
-
-    function setFounder5(address _to) onlyOwner public returns (bool) {
-        require(_to != address(0));
-        founder5 = _to;
-        return true;
-    }
-
-    function setCompany(address _to) onlyOwner public returns (bool) {
-        require(_to != address(0));
-        company = _to;
-        return true;
-    }
-
-    function setBounty(address _to) onlyOwner public returns (bool) {
-        require(_to != address(0));
-        bounty = _to;
-        return true;
-    }
-
-    function getTeamAddresses() onlyOwner public view returns (address, address, address, address, address, address, address) {
-        return (founder1, founder2, founder3, founder4, founder5, company, bounty);
     }
 
     // This is a setter for rewardGenerationComplete. It will be used to see if token rewards need to be computed, and can only be set by owner
