@@ -60,23 +60,22 @@ contract ToorToken is ERC20Basic, Ownable {
         symbol = "TOOR";
 
         // Setup the token staking reward percentage per year
-        rateMultiplier = 10**14;
-        ratesByYear[1] = 1.00466125247859 * 10**14;
-        ratesByYear[2] = 1.00327808818413 * 10**14;
-        ratesByYear[3] = 1.00279984113421 * 10**14;
-        ratesByYear[4] = 1.00244353542178 * 10**14;
+        ratesByYear[1] = 1.00475021320817 * 10**14;
+        ratesByYear[2] = 1.00327808818412 * 10**14;
+        ratesByYear[3] = 1.0027998411342 * 10**14;
+        ratesByYear[4] = 1.00244353542177 * 10**14;
         ratesByYear[5] = 1.00216776307204 * 10**14;
-        ratesByYear[6] = 1.00194797199061 * 10**14;
+        ratesByYear[6] = 1.0019479719906 * 10**14;
         ratesByYear[7] = 1.00176867594624 * 10**14;
         ratesByYear[8] = 1.00161962151688 * 10**14;
         ratesByYear[9] = 1.00149374903201 * 10**14;
         ratesByYear[10] = 1.00138603842211 * 10**14;
-        ratesByYear[11] = 1.00129282200637 * 10**14;
+        ratesByYear[11] = 1.00129282200636 * 10**14;
         ratesByYear[12] = 1.00121135767832 * 10**14;
         ratesByYear[13] = 1.00113955418154 * 10**14;
         ratesByYear[14] = 1.00107578877672 * 10**14;
         ratesByYear[15] = 1.00101878296575 * 10**14;
-        ratesByYear[16] = 1.00096751578847 * 10**14;
+        ratesByYear[16] = 1.00096751578846 * 10**14;
         ratesByYear[17] = 1.00092116207264 * 10**14;
         ratesByYear[18] = 1.00087904764088 * 10**14;
         ratesByYear[19] = 1.00084061627889 * 10**14;
@@ -310,20 +309,16 @@ contract ToorToken is ERC20Basic, Ownable {
                     rewardCat[0] = tokensOwedByInterval(founderCat[0], intervalsAtVest, currInterval);
                     rewardCat[1] = tokensOwedByInterval(founderCat[1], intervalsAtVest, currInterval);
 
-                    // Add rewards to founder tokens being vested
-                    founderCat[0] += rewardCat[0];
-                    founderCat[1] += rewardCat[1];
-
                     // Increase total amount of tokens to vest
                     totalTokensToVest += tokensToVest;
                     totalTokensToVest += ((3 * rewardCat[0]) + (2 * rewardCat[1]));
 
                     // Vest tokens for each of the founders, this includes any rewards pending since vest interval passed
-                    accounts[distributionAddresses[1]].balance += founderCat[0];
-                    accounts[distributionAddresses[2]].balance += founderCat[0];
-                    accounts[distributionAddresses[3]].balance += founderCat[0];
-                    accounts[distributionAddresses[4]].balance += founderCat[1];
-                    accounts[distributionAddresses[5]].balance += founderCat[1];
+                    accounts[distributionAddresses[1]].balance += (founderCat[0] + rewardCat[0]);
+                    accounts[distributionAddresses[2]].balance += (founderCat[0] + rewardCat[0]);
+                    accounts[distributionAddresses[3]].balance += (founderCat[0] + rewardCat[0]);
+                    accounts[distributionAddresses[4]].balance += (founderCat[1] + rewardCat[1]);
+                    accounts[distributionAddresses[5]].balance += (founderCat[1] + rewardCat[1]);
                 }
             }
 
