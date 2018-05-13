@@ -60,6 +60,7 @@ contract ToorToken is ERC20Basic, Ownable {
         symbol = "TOOR";
 
         // Setup the token staking reward percentage per year
+        rateMultiplier = 10**14;
         ratesByYear[1] = 1.00475021320817 * 10**14;
         ratesByYear[2] = 1.00327808818412 * 10**14;
         ratesByYear[3] = 1.0027998411342 * 10**14;
