@@ -86,7 +86,7 @@ contract ToorToken is ERC20Basic, Ownable {
         
         maxSupply = 100000000 * 10**18;
         initialSupply_ = 13500000 * 10**18;
-        pendingInstallments = 6;
+        pendingInstallments = 7;
         paidInstallments = 0;
         totalVestingPool = 4500000 * 10**18;
         startTime = now;
@@ -120,8 +120,8 @@ contract ToorToken is ERC20Basic, Ownable {
         pendingVestingPool = totalVestingPool;
         pendingRewardsToMint = maxSupply - initialSupply_ - totalVestingPool;
         totalSupply_ = initialSupply_;
-        vestingPeriod = timeToGenAllTokens / (totalRateWindows * 12); // One vesting period is a quarter. 80 quarters in 20 years
-        cliff = vestingPeriod * 6; // Cliff is two vesting periods aka 6 months roughly
+        vestingPeriod = timeToGenAllTokens / (totalRateWindows * 12); // One vesting period is a month
+        cliff = vestingPeriod * 6; // Cliff is six vesting periods aka 6 months roughly
         finalIntervalForTokenGen = timeToGenAllTokens / tokenGenInterval;
         intervalsPerWindow = finalIntervalForTokenGen / totalRateWindows;
     }
@@ -218,7 +218,7 @@ contract ToorToken is ERC20Basic, Ownable {
     // This function is to vest tokens to the founding team
     function vestTokens() public returns (bool) {
         require(pendingInstallments > 0);
-        require(paidInstallments < 6);
+        require(paidInstallments < 7);
         require(pendingVestingPool > 0);
         require(now - startTime > cliff);
 
@@ -260,7 +260,7 @@ contract ToorToken is ERC20Basic, Ownable {
             // This condition checks if there are any rewards to pay after the cliff
             if (currInterval > intervalAtCliff && !rewardGenerationComplete) {
                 rewardCat[0] = tokensOwedByInterval(founderCat[0], intervalAtCliff, currInterval);
-                rewardCat[1] = tokensOwedByInterval(founderCat[1], intervalAtCliff, currInterval);
+                rewardCat[1] = rewardCat[0] / 2;
 
                 // Add rewards to founder tokens being vested
                 founderCat[0] += rewardCat[0];
@@ -294,7 +294,8 @@ contract ToorToken is ERC20Basic, Ownable {
                 installmentsToPay = pendingInstallments;
             }
 
-            tokensToVest = (totalPool * 15) / 100;
+            // 12.5% vesting monthly after the cliff
+            tokensToVest = (totalPool * 125) / 1000;
 
             founderCat[0] = tokensToVest / 4;
             founderCat[1] = tokensToVest / 8;
@@ -306,9 +307,9 @@ contract ToorToken is ERC20Basic, Ownable {
                 intervalsAtVest = intervalAtTime(cliff + (installment * vestingPeriod));
 
                 // This condition checks if there are any rewards to pay after the cliff
-                if (currInterval > intervalsAtVest && !rewardGenerationComplete) {
+                if (currInterval >= intervalsAtVest && !rewardGenerationComplete) {
                     rewardCat[0] = tokensOwedByInterval(founderCat[0], intervalsAtVest, currInterval);
-                    rewardCat[1] = tokensOwedByInterval(founderCat[1], intervalsAtVest, currInterval);
+                    rewardCat[1] = rewardCat[0] / 2;
 
                     // Increase total amount of tokens to vest
                     totalTokensToVest += tokensToVest;
