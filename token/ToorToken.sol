@@ -36,10 +36,10 @@ contract ToorToken is ERC20Basic, Ownable {
     uint256 private tokenGenInterval; // This defines the frequency at which we calculate rewards
     uint256 private vestingPeriod; // Defines how often tokens vest to team
     uint256 private cliff; // Defines the minimum amount of time required before tokens vest
-    uint256 private pendingInstallments; // Defines the number of pending vesting installments for team
-    uint256 private paidInstallments; // Defines the number of pending vesting installments for team
+    uint256 public pendingInstallments; // Defines the number of pending vesting installments for team
+    uint256 public paidInstallments; // Defines the number of pending vesting installments for team
     uint256 private totalVestingPool; //  Defines total vesting pool set aside for team
-    uint256 private pendingVestingPool; // Defines pending tokens in pool set aside for team
+    uint256 public pendingVestingPool; // Defines pending tokens in pool set aside for team
     uint256 public finalIntervalForTokenGen; // The last instance of reward calculation, after which rewards will cease
     uint256 private totalRateWindows; // This specifies the number of rate windows over the total period of time
     uint256 private intervalsPerWindow; // Total number of times we calculate rewards within 1 rate window
@@ -251,7 +251,7 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // Pay out cliff
         if (paidInstallments < 1) {
-            uint256 intervalAtCliff = intervalAtTime(cliff);
+            uint256 intervalAtCliff = intervalAtTime(cliff + startTime);
             tokensToVest = totalPool / 4;
 
             founderCat[0] = tokensToVest / 4;
@@ -304,7 +304,7 @@ contract ToorToken is ERC20Basic, Ownable {
 
             // Loop through installments to pay, so that we can add token holding rewards as we go along
             for (uint256 installment = 1; installment <= installmentsToPay; installment++) {
-                intervalsAtVest = intervalAtTime(cliff + (installment * vestingPeriod));
+                intervalsAtVest = intervalAtTime(cliff + (installment * vestingPeriod) + startTime);
 
                 // This condition checks if there are any rewards to pay after the cliff
                 if (currInterval >= intervalsAtVest && !rewardGenerationComplete) {
