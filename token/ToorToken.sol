@@ -36,10 +36,10 @@ contract ToorToken is ERC20Basic, Ownable {
     uint256 private tokenGenInterval; // This defines the frequency at which we calculate rewards
     uint256 private vestingPeriod; // Defines how often tokens vest to team
     uint256 private cliff; // Defines the minimum amount of time required before tokens vest
-    uint256 private pendingInstallments; // Defines the number of pending vesting installments for team
-    uint256 private paidInstallments; // Defines the number of pending vesting installments for team
+    uint256 public pendingInstallments; // Defines the number of pending vesting installments for team
+    uint256 public paidInstallments; // Defines the number of pending vesting installments for team
     uint256 private totalVestingPool; //  Defines total vesting pool set aside for team
-    uint256 private pendingVestingPool; // Defines pending tokens in pool set aside for team
+    uint256 public pendingVestingPool; // Defines pending tokens in pool set aside for team
     uint256 public finalIntervalForTokenGen; // The last instance of reward calculation, after which rewards will cease
     uint256 private totalRateWindows; // This specifies the number of rate windows over the total period of time
     uint256 private intervalsPerWindow; // Total number of times we calculate rewards within 1 rate window
@@ -251,7 +251,7 @@ contract ToorToken is ERC20Basic, Ownable {
 
         // Pay out cliff
         if (paidInstallments < 1) {
-            uint256 intervalAtCliff = intervalAtTime(cliff);
+            uint256 intervalAtCliff = intervalAtTime(cliff + startTime);
             tokensToVest = totalPool / 4;
 
             founderCat[0] = tokensToVest / 4;
@@ -304,7 +304,7 @@ contract ToorToken is ERC20Basic, Ownable {
 
             // Loop through installments to pay, so that we can add token holding rewards as we go along
             for (uint256 installment = 1; installment <= installmentsToPay; installment++) {
-                intervalsAtVest = intervalAtTime(cliff + (installment * vestingPeriod));
+                intervalsAtVest = intervalAtTime(cliff + (installment * vestingPeriod) + startTime);
 
                 // This condition checks if there are any rewards to pay after the cliff
                 if (currInterval >= intervalsAtVest && !rewardGenerationComplete) {
@@ -347,6 +347,117 @@ contract ToorToken is ERC20Basic, Ownable {
         generateMintEvents(distributionAddresses[4], (accounts[distributionAddresses[4]].balance - origFounderBal[3]));
         generateMintEvents(distributionAddresses[5], (accounts[distributionAddresses[5]].balance - origFounderBal[4]));
     }
+
+/*     function vestTokens(uint256 installmentNumber) public {
+        require(installmentNumber > 0);
+
+        if (installmentNumber == 1) {
+            require(pendingInstallments == 7);
+            require(paidInstallments == 0);
+        }
+        else
+        {
+            require(paidInstallments == installmentNumber - 1);
+        }
+
+        uint256 timeAtInstallment = cliff + ((installmentNumber - 1) * vestingPeriod);
+        require(now - startTime > timeAtInstallment);
+
+        mapping(uint256 => address) vestingAddresses = distributionAddresses;
+
+        // If they have rewards pending, allocate those first
+        if (!rewardGenerationComplete) {
+            for (uint256 i = 1; i <= 5; i++) {
+                addReward(vestingAddresses[i]);
+            }
+        }
+
+        uint256 currInterval = intervalAtTime(now);
+        uint256 tokensToVest = 0;
+        
+        uint256[2] founderCat;
+        founderCat[0] = 0;
+        founderCat[1] = 0;
+
+        uint256[5] origFounderBal;
+        origFounderBal[0] = accounts[vestingAddresses[1]].balance;
+        origFounderBal[1] = accounts[vestingAddresses[2]].balance;
+        origFounderBal[2] = accounts[vestingAddresses[3]].balance;
+        origFounderBal[3] = accounts[vestingAddresses[4]].balance;
+        origFounderBal[4] = accounts[vestingAddresses[5]].balance;
+
+        uint256[2] rewardCat;
+        rewardCat[0] = 0;
+        rewardCat[1] = 0;
+
+        // Pay out vested tokens
+        if (installmentNumber == 1) {
+            // This equates to 25%
+            tokensToVest = totalVestingPool / 4;
+        } else {
+            // This equates to 12.5%
+            tokensToVest = (totalVestingPool * 125) / 100;
+        }
+
+        // Ensure we have the number of tokens required for vesting
+        require(tokensToVest <= pendingVestingPool);
+
+        founderCat[0] = tokensToVest / 4;
+        founderCat[1] = tokensToVest / 8;
+
+        uint256 intervalsAtVest = intervalAtTime(timeAtInstallment + startTime);
+
+        // This condition checks if there are any rewards to pay after the cliff
+        if (currInterval > intervalsAtVest && !rewardGenerationComplete) {
+            rewardCat[0] = tokensOwedByInterval(founderCat[0], intervalsAtVest, currInterval);
+            rewardCat[1] = rewardCat[0] / 2;
+
+            // Add rewards to founder tokens being vested
+            founderCat[0] += rewardCat[0];
+            founderCat[1] += rewardCat[1];
+
+            // Increase total amount of tokens to vest
+            tokensToVest += ((3 * rewardCat[0]) + (2 * rewardCat[1]));
+        }
+
+        vestingAccounting(founderCat, origFounderBal, tokensToVest, currInterval);
+    }
+
+
+    function vestingAccounting(uint256[2] founderCat, uint256[5] origFounderBal, uint256 totalTokensToVest, uint256 currInterval) private {
+
+        mapping(uint256 => address) vestingAddressess = distributionAddresses;
+
+        // Vest tokens for each of the founders, this includes any rewards pending since cliff passed
+        accounts[vestingAddressess[1]].balance += founderCat[0];
+        accounts[vestingAddressess[2]].balance += founderCat[0];
+        accounts[vestingAddressess[3]].balance += founderCat[0];
+        accounts[vestingAddressess[4]].balance += founderCat[1];
+        accounts[vestingAddressess[5]].balance += founderCat[1];
+
+        // Update pending and paid installments
+        pendingInstallments -= 1;
+        paidInstallments += 1;
+
+        // Increase total supply by the number of tokens being vested
+        increaseTotalSupply(totalTokensToVest);
+            
+        // Reduce pendingVestingPool and update pending and paid installments
+        pendingVestingPool -= totalTokensToVest;
+
+        accounts[vestingAddressess[1]].lastInterval = currInterval;
+        accounts[vestingAddressess[2]].lastInterval = currInterval;
+        accounts[vestingAddressess[3]].lastInterval = currInterval;
+        accounts[vestingAddressess[4]].lastInterval = currInterval;
+        accounts[vestingAddressess[5]].lastInterval = currInterval;
+
+        // Create events for token generation
+        generateMintEvents(vestingAddressess[1], (accounts[vestingAddressess[1]].balance - origFounderBal[0]));
+        generateMintEvents(vestingAddressess[2], (accounts[vestingAddressess[2]].balance - origFounderBal[1]));
+        generateMintEvents(vestingAddressess[3], (accounts[vestingAddressess[3]].balance - origFounderBal[2]));
+        generateMintEvents(vestingAddressess[4], (accounts[vestingAddressess[4]].balance - origFounderBal[3]));
+        generateMintEvents(vestingAddressess[5], (accounts[vestingAddressess[5]].balance - origFounderBal[4]));
+    } */
 
     function increaseTotalSupply (uint256 tokens) private returns (bool) {
         require ((totalSupply_ + tokens) <= maxSupply);
