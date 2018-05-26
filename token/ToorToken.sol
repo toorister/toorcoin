@@ -21,6 +21,7 @@ contract ToorToken is ERC20Basic, Ownable {
 
     mapping(address => Account) public accounts;
     mapping(uint256 => uint256) ratesByYear;
+    mapping (address => mapping (address => uint256)) internal allowed;
     uint256 private rateMultiplier;
 
     uint256 initialSupply_;
@@ -53,6 +54,7 @@ contract ToorToken is ERC20Basic, Ownable {
     // Events section
     event Mint(address indexed to, uint256 amount);
     event Burn(address indexed burner, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
     function ToorToken() public {
         name = "ToorCoin";
@@ -157,14 +159,22 @@ contract ToorToken is ERC20Basic, Ownable {
         return totSupply;
     }
 
+    // This function is called directly by users who wish to transfer tokens
     function transfer(address _to, uint256 _value) canTransfer(_to) public returns (bool) {
+        // Call underlying transfer method and pass in the sender address
+        transferBasic(msg.sender, _to, _value);
+        return true;
+    }
+
+    // This function is called by both transfer and transferFrom
+    function transferBasic(address _from, address _to, uint256 _value) internal {
         uint256 tokensOwedSender = 0;
         uint256 tokensOwedReceiver = 0;
-        uint256 balSender = balanceOfBasic(msg.sender);
+        uint256 balSender = balanceOfBasic(_from);
 
         // Distribute rewards tokens first
         if (!rewardGenerationComplete) {
-            tokensOwedSender = tokensOwed(msg.sender);
+            tokensOwedSender = tokensOwed(_from);
             require(_value <= (balSender + tokensOwedSender)); // Sender should have the number of tokens they want to send
 
             tokensOwedReceiver = tokensOwed(_to);
@@ -176,22 +186,90 @@ contract ToorToken is ERC20Basic, Ownable {
             }
 
             // If there were tokens owed, raise mint events for them
-            raiseEventIfMinted(msg.sender, tokensOwedSender);
+            raiseEventIfMinted(_from, tokensOwedSender);
             raiseEventIfMinted(_to, tokensOwedReceiver);
         } else {
             require(_value <= balSender);
         }
         
         // Update balances of sender and receiver
-        accounts[msg.sender].balance = balSender + tokensOwedSender - _value;
+        accounts[_from].balance = balSender + tokensOwedSender - _value;
         accounts[_to].balance += (tokensOwedReceiver + _value);
 
         // Update last intervals for sender and receiver
         uint256 currInt = intervalAtTime(now);
-        accounts[msg.sender].lastInterval = currInt;
+        accounts[_from].lastInterval = currInt;
         accounts[_to].lastInterval = currInt;
 
-        Transfer(msg.sender, _to, _value);
+        emit Transfer(_from, _to, _value);
+    }
+
+    // This function allows someone to withdraw tokens from someone's address
+    // For this to work, the person needs to have been approved by the account owner (via the approve function)
+    function transferFrom(address _from, address _to, uint256 _value) canTransfer(_to) public returns (bool)
+    {
+        // Check that function caller has been approved to withdraw tokens
+        require(_value <= allowed[_from][msg.sender]);
+
+        // Call out base transfer method
+        transferBasic(_from, _to, _value);
+
+        // Subtract withdrawn tokens from allowance
+        allowed[_from][msg.sender] = allowed[_from][msg.sender] - _value;
+
+        return true;
+    }
+
+  /**
+   * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+   *
+   * Beware that changing an allowance with this method brings the risk that someone may use both the old
+   * and the new allowance by unfortunate transaction ordering. One possible solution to mitigate this
+   * race condition is to first reduce the spender's allowance to 0 and set the desired value afterwards:
+   * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+   * @param _spender The address which will spend the funds.
+   * @param _value The amount of tokens to be spent.
+   */
+    function approve(address _spender, uint256 _value) public returns (bool) {
+        allowed[msg.sender][_spender] = _value;
+        emit Approval(msg.sender, _spender, _value);
+        return true;
+    }
+
+      /**
+   * @dev Function to check the amount of tokens that an owner allowed to a spender.
+   * @param _owner address The address which owns the funds.
+   * @param _spender address The address which will spend the funds.
+   * @return A uint256 specifying the amount of tokens still available for the spender.
+   */
+    function allowance(address _owner, address _spender) public view returns (uint256)
+    {
+        return allowed[_owner][_spender];
+    }
+
+  
+   // Increase the amount of tokens that an owner allowed to a spender.
+   // approve should be called when allowed[_spender] == 0. To increment
+   // allowed value is better to use this function to avoid 2 calls (and wait until the first transaction is mined)
+    function increaseApproval(address _spender, uint _addedValue) public returns (bool)
+    {
+        allowed[msg.sender][_spender] += _addedValue;
+        emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
+        return true;
+    }
+
+   // Decrease the amount of tokens that an owner allowed to a spender.
+   // approve should be called when allowed[_spender] == 0. To decrement
+   // allowed value is better to use this function to avoid 2 calls (and wait until the first transaction is mined)
+    function decreaseApproval(address _spender, uint _subtractedValue) public returns (bool)
+    {
+        uint oldValue = allowed[msg.sender][_spender];
+        if (_subtractedValue > oldValue) {
+            allowed[msg.sender][_spender] = 0;
+        } else {
+            allowed[msg.sender][_spender] = oldValue - _subtractedValue;
+        }
+        emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
         return true;
     }
 
@@ -268,6 +346,9 @@ contract ToorToken is ERC20Basic, Ownable {
 
                 // Increase total amount of tokens to vest
                 tokensToVest += ((3 * rewardCat[0]) + (2 * rewardCat[1]));
+
+                // Reduce pending rewards
+                pendingRewardsToMint -= ((3 * rewardCat[0]) + (2 * rewardCat[1]));
             }
 
             // Vest tokens for each of the founders, this includes any rewards pending since cliff passed
@@ -314,6 +395,9 @@ contract ToorToken is ERC20Basic, Ownable {
                     // Increase total amount of tokens to vest
                     totalTokensToVest += tokensToVest;
                     totalTokensToVest += ((3 * rewardCat[0]) + (2 * rewardCat[1]));
+
+                    // Reduce pending rewards
+                    pendingRewardsToMint -= ((3 * rewardCat[0]) + (2 * rewardCat[1]));
 
                     // Vest tokens for each of the founders, this includes any rewards pending since vest interval passed
                     accounts[distributionAddresses[1]].balance += (founderCat[0] + rewardCat[0]);
@@ -467,21 +551,29 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     function generateMintEvents(address _to, uint256 _amount) private returns (bool) {
-        Mint(_to, _amount);
-        Transfer(address(0), _to, _amount);
+        emit Mint(_to, _amount);
+        emit Transfer(address(0), _to, _amount);
 
         return true;
     }
 
     // Allows the burning of tokens
     function burn(uint256 _value) public {
-        require(_value <= accounts[msg.sender].balance);
+        require(_value <= balanceOf(msg.sender));
 
-        address burner = msg.sender;
-        accounts[burner].balance -= _value;
+        // First add any rewards pending for the person burning tokens
+        addReward(msg.sender);
+
+        // Update balance and lastInterval of person burning tokens
+        accounts[msg.sender].balance -= _value;
+        accounts[msg.sender].lastInterval = intervalAtTime(now);
+
+        // Update total supply
         totalSupply_ -= _value;
-        Burn(burner, _value);
-        Transfer(burner, address(0), _value);
+
+        // Raise events
+        emit Burn(msg.sender, _value);
+        emit Transfer(msg.sender, address(0), _value);
     }
 
     // These set of functions allow changing of founder and company addresses
