@@ -3,16 +3,14 @@ pragma solidity ^0.4.18;
 
 import "./ERC20Basic.sol";
 import "./Ownable.sol";
+import "./SafeMath.sol";
 
 /**
  * @title Basic token
  * @dev Basic version of StandardToken, with no allowances.
  */
 contract ToorToken is ERC20Basic, Ownable {
-    // TODO LIST (NOTHING AT THE MOMENT)
-    // Still need to test out transfers
-    // TokenSupply at the moment is actual physical supply. But balances of owner are physical + rewards. That shows up as total amount held by people being greater than total supply on etherscan
-    // Too many tokens being given out for vesting runs after 65 intervals (2.5m+ for founderCat1)
+    using SafeMath for uint256;
 
     struct Account {
         uint balance;
@@ -132,32 +130,6 @@ contract ToorToken is ERC20Basic, Ownable {
     function totalSupply() public view returns (uint256) {
         return totalSupply_;
     }
-    
-    function allocatedSupply() public view returns (uint256) {
-        uint256 totSupply = initialSupply_;
-        uint256 vestingPerMonth = (totalVestingPool * 15) / 100;
-        uint256 currInterval = intervalAtTime(now);
-        uint256 cliffInterval = intervalAtTime(startTime + cliff);
-
-        // This adds reward tokens rewarded for initial supply until now
-        totSupply += tokensOwedByInterval(initialSupply_, 0, currInterval);
-
-        // This adds tokens rewarded for tokens vesting on cliff onwards
-        if (now >= cliff) {
-            totSupply += (vestingPerMonth * 6);
-            totSupply += tokensOwedByInterval((vestingPerMonth * 6), cliffInterval, currInterval);
-        }
-
-        // This adds the token rewards for tokens vesting after the cliff onwards
-        for (uint256 installment = 1; installment <= 5; installment++) {
-            if (now >= (startTime + cliff + (installment * vestingPeriod))) {
-                totSupply += vestingPerMonth;
-                totSupply += tokensOwedByInterval(vestingPerMonth, intervalAtTime(startTime + cliff + (installment * vestingPeriod)), currInterval);
-            }
-        }
-
-        return totSupply;
-    }
 
     // This function is called directly by users who wish to transfer tokens
     function transfer(address _to, uint256 _value) canTransfer(_to) public returns (bool) {
@@ -175,14 +147,14 @@ contract ToorToken is ERC20Basic, Ownable {
         // Distribute rewards tokens first
         if (!rewardGenerationComplete) {
             tokensOwedSender = tokensOwed(_from);
-            require(_value <= (balSender + tokensOwedSender)); // Sender should have the number of tokens they want to send
+            require(_value <= (balSender.add(tokensOwedSender))); // Sender should have the number of tokens they want to send
 
             tokensOwedReceiver = tokensOwed(_to);
 
             // If there were tokens owed, increase total supply accordingly
-            if ((tokensOwedSender + tokensOwedReceiver) > 0) {
-                increaseTotalSupply(tokensOwedSender + tokensOwedReceiver); // This will break if total exceeds max cap
-                pendingRewardsToMint -= (tokensOwedSender + tokensOwedReceiver);
+            if ((tokensOwedSender.add(tokensOwedReceiver)) > 0) {
+                increaseTotalSupply(tokensOwedSender.add(tokensOwedReceiver)); // This will break if total exceeds max cap
+                pendingRewardsToMint = pendingRewardsToMint.sub(tokensOwedSender.add(tokensOwedReceiver));
             }
 
             // If there were tokens owed, raise mint events for them
@@ -193,8 +165,8 @@ contract ToorToken is ERC20Basic, Ownable {
         }
         
         // Update balances of sender and receiver
-        accounts[_from].balance = balSender + tokensOwedSender - _value;
-        accounts[_to].balance += (tokensOwedReceiver + _value);
+        accounts[_from].balance = (balSender.add(tokensOwedSender)).sub(_value);
+        accounts[_to].balance = (accounts[_to].balance.add(tokensOwedReceiver)).add(_value);
 
         // Update last intervals for sender and receiver
         uint256 currInt = intervalAtTime(now);
@@ -215,7 +187,7 @@ contract ToorToken is ERC20Basic, Ownable {
         transferBasic(_from, _to, _value);
 
         // Subtract withdrawn tokens from allowance
-        allowed[_from][msg.sender] = allowed[_from][msg.sender] - _value;
+        allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
 
         return true;
     }
@@ -253,7 +225,7 @@ contract ToorToken is ERC20Basic, Ownable {
    // allowed value is better to use this function to avoid 2 calls (and wait until the first transaction is mined)
     function increaseApproval(address _spender, uint _addedValue) public returns (bool)
     {
-        allowed[msg.sender][_spender] += _addedValue;
+        allowed[msg.sender][_spender] = allowed[msg.sender][_spender].add(_addedValue);
         emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
         return true;
     }
@@ -267,7 +239,7 @@ contract ToorToken is ERC20Basic, Ownable {
         if (_subtractedValue > oldValue) {
             allowed[msg.sender][_spender] = 0;
         } else {
-            allowed[msg.sender][_spender] = oldValue - _subtractedValue;
+            allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
         }
         emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
         return true;
@@ -284,9 +256,9 @@ contract ToorToken is ERC20Basic, Ownable {
 
         if (tokensToReward > 0) {
             increaseTotalSupply(tokensToReward); // This will break if total supply exceeds max cap. Should never happen though as tokensOwed checks for this condition
-            accounts[owner].balance += tokensToReward;
+            accounts[owner].balance = accounts[owner].balance.add(tokensToReward);
             accounts[owner].lastInterval = intervalAtTime(now);
-            pendingRewardsToMint -= tokensToReward; // This helps track rounding errors when computing rewards
+            pendingRewardsToMint = pendingRewardsToMint.sub(tokensToReward); // This helps track rounding errors when computing rewards
             generateMintEvents(owner, tokensToReward);
         }
 
@@ -433,8 +405,8 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     function increaseTotalSupply (uint256 tokens) private returns (bool) {
-        require ((totalSupply_ + tokens) <= maxSupply);
-        totalSupply_ += tokens;
+        require ((totalSupply_.add(tokens)) <= maxSupply);
+        totalSupply_ = totalSupply_.add(tokens);
 
         return true;
     }
@@ -464,8 +436,8 @@ contract ToorToken is ERC20Basic, Ownable {
         mapping(uint256 => uint256) ratByYear = ratesByYear;
         uint256 ratMultiplier = rateMultiplier;
 
-        uint256 minRateWindow = (lastInterval / intPerWin) + 1;
-        uint256 maxRateWindow = (currInterval / intPerWin) + 1;
+        uint256 minRateWindow = (lastInterval / intPerWin).add(1);
+        uint256 maxRateWindow = (currInterval / intPerWin).add(1);
         if (maxRateWindow > totalRateWinds) {
             maxRateWindow = totalRateWinds;
         }
@@ -478,17 +450,17 @@ contract ToorToken is ERC20Basic, Ownable {
             // Loop through interval in batches
             while (intervals > 0) {
                 if (intervals >= intPerBatch) {
-                    tokensHeld = (tokensHeld * (ratByYear[rateWindow] ** intPerBatch)) / (ratMultiplier ** intPerBatch);
-                    intervals -= intPerBatch;
+                    tokensHeld = (tokensHeld.mul(ratByYear[rateWindow] ** intPerBatch)) / (ratMultiplier ** intPerBatch);
+                    intervals = intervals.sub(intPerBatch);
                 } else {
-                    tokensHeld = (tokensHeld * (ratByYear[rateWindow] ** intervals)) / (ratMultiplier ** intervals);
+                    tokensHeld = (tokensHeld.mul(ratByYear[rateWindow] ** intervals)) / (ratMultiplier ** intervals);
                     intervals = 0;
                 }
             }            
         }
 
         // Rewards owed are the total balance that user SHOULD have minus what they currently have
-        return (tokensHeld - balance);
+        return (tokensHeld.sub(balance));
     }
 
     function intervalAtTime(uint256 time) public view returns (uint256) {
@@ -498,7 +470,7 @@ contract ToorToken is ERC20Basic, Ownable {
         }
 
         // Based on time passed in, check how many intervals have elapsed
-        uint256 interval = (time - startTime) / tokenGenInterval;
+        uint256 interval = (time.sub(startTime)) / tokenGenInterval;
         uint256 finalInt = finalIntervalForTokenGen; // Assign to local to reduce gas
         
         // Return max intervals if it's greater than that time
@@ -512,16 +484,16 @@ contract ToorToken is ERC20Basic, Ownable {
     // This function checks how many intervals for a given window do we owe tokens to someone for 
     function getIntervalsForWindow(uint256 rateWindow, uint256 lastInterval, uint256 currInterval, uint256 intPerWind) public pure returns (uint256) {
         // If lastInterval for holder falls in a window previous to current one, the lastInterval for the window passed into the function would be the window start interval
-        if (lastInterval < ((rateWindow - 1) * intPerWind)) {
-            lastInterval = ((rateWindow - 1) * intPerWind);
+        if (lastInterval < ((rateWindow.sub(1)).mul(intPerWind))) {
+            lastInterval = ((rateWindow.sub(1)).mul(intPerWind));
         }
 
         // If currentInterval for holder falls in a window higher than current one, the currentInterval for the window passed into the function would be the window end interval
-        if (currInterval > rateWindow * intPerWind) {
-            currInterval = rateWindow * intPerWind;
+        if (currInterval > rateWindow.mul(intPerWind)) {
+            currInterval = rateWindow.mul(intPerWind);
         }
 
-        return currInterval - lastInterval;
+        return currInterval.sub(lastInterval);
     }
 
     // This function tells the balance of tokens at a particular address
@@ -529,7 +501,7 @@ contract ToorToken is ERC20Basic, Ownable {
         if (rewardGenerationComplete) {
             return accounts[_owner].balance;
         } else {
-            return accounts[_owner].balance + tokensOwed(_owner);
+            return (accounts[_owner].balance).add(tokensOwed(_owner));
         }
     }
 
@@ -539,13 +511,13 @@ contract ToorToken is ERC20Basic, Ownable {
 
     // This functions returns the last time at which rewards were transferred to a particular address
     function lastTimeOf(address _owner) public view returns (uint256 interval, uint256 time) {
-        return (accounts[_owner].lastInterval, (accounts[_owner].lastInterval * tokenGenInterval) + startTime);
+        return (accounts[_owner].lastInterval, ((accounts[_owner].lastInterval).mul(tokenGenInterval)).add(startTime));
     }
 
     // This function is not meant to be used. It's only written as a fail-safe against potential unforeseen issues
     function mint(address _to, uint256 _amount) onlyOwner public returns (bool) {
         increaseTotalSupply(_amount);
-        accounts[_to].balance += _amount;
+        accounts[_to].balance = (accounts[_to].balance).add(_amount);
         generateMintEvents(_to, _amount);
         return true;
     }
@@ -565,11 +537,11 @@ contract ToorToken is ERC20Basic, Ownable {
         addReward(msg.sender);
 
         // Update balance and lastInterval of person burning tokens
-        accounts[msg.sender].balance -= _value;
+        accounts[msg.sender].balance = (accounts[msg.sender].balance).sub(_value);
         accounts[msg.sender].lastInterval = intervalAtTime(now);
 
         // Update total supply
-        totalSupply_ -= _value;
+        totalSupply_ = totalSupply_.sub(_value);
 
         // Raise events
         emit Burn(msg.sender, _value);
