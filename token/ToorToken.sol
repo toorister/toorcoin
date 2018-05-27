@@ -204,7 +204,9 @@ contract ToorToken is ERC20Basic, Ownable {
         for (uint i = 0; i < cnt; i++) {
             // Add pending rewards for receiver first
             if (!rewardGenerationComplete) {
-                addReward([_receivers[i]]);
+                address receiver = _receivers[i];
+                
+                addReward(receiver);
             }
 
             // Update balance and lastInterval of receiver
