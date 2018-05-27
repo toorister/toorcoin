@@ -26,7 +26,7 @@ contract ToorToken is ERC20Basic, Ownable {
     uint256 totalSupply_;
     uint256 public maxSupply;
     uint256 public startTime;
-    uint256 pendingRewardsToMint;
+    uint256 public pendingRewardsToMint;
 
     string public name;
     uint public decimals;
@@ -174,6 +174,46 @@ contract ToorToken is ERC20Basic, Ownable {
         accounts[_to].lastInterval = currInt;
 
         emit Transfer(_from, _to, _value);
+    }
+
+    // If you want to transfer tokens to multiple receivers at once
+    function batchTransfer(address[] _receivers, uint256 _value) public returns (bool) {
+        uint256 cnt = _receivers.length;
+        uint256 amount = cnt.mul(_value);
+        
+        // Check that the value to send is more than 0
+        require(_value > 0);
+
+        // Add pending rewards for sender first
+        if (!rewardGenerationComplete) {
+            addReward(msg.sender);
+        }
+
+        // Get current balance of sender
+        uint256 balSender = balanceOfBasic(msg.sender);
+
+        // Check that the sender has the required amount
+        require(balSender >= amount);
+
+        // Update balance and lastInterval of sender
+        accounts[msg.sender].balance = balSender.sub(amount);
+        uint256 currInt = intervalAtTime(now);
+        accounts[msg.sender].lastInterval = currInt;
+        
+        
+        for (uint i = 0; i < cnt; i++) {
+            // Add pending rewards for receiver first
+            if (!rewardGenerationComplete) {
+                addReward([_receivers[i]]);
+            }
+
+            // Update balance and lastInterval of receiver
+            accounts[_receivers[i]].balance = (accounts[_receivers[i]].balance).add(_value);
+            accounts[_receivers[i]].lastInterval = currInt;
+            emit Transfer(msg.sender, _receivers[i], _value);
+        }
+
+        return true;
     }
 
     // This function allows someone to withdraw tokens from someone's address
@@ -534,7 +574,9 @@ contract ToorToken is ERC20Basic, Ownable {
         require(_value <= balanceOf(msg.sender));
 
         // First add any rewards pending for the person burning tokens
-        addReward(msg.sender);
+        if (!rewardGenerationComplete) {
+            addReward(msg.sender);
+        }
 
         // Update balance and lastInterval of person burning tokens
         accounts[msg.sender].balance = (accounts[msg.sender].balance).sub(_value);
