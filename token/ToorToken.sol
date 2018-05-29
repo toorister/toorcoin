@@ -308,6 +308,7 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     // This function is to vest tokens to the founding team
+    // This deliberately doesn't use SafeMath as all the values are controlled without risk of overflow
     function vestTokens() public returns (bool) {
         require(pendingInstallments > 0);
         require(paidInstallments < 7);
