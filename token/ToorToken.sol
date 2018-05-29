@@ -60,27 +60,27 @@ contract ToorToken is ERC20Basic, Ownable {
         symbol = "TOOR";
 
         // Setup the token staking reward percentage per year
-        rateMultiplier = 10**14;
-        ratesByYear[1] = 1.00474436026569 * 10**14;
-        ratesByYear[2] = 1.00327808818412 * 10**14;
-        ratesByYear[3] = 1.0027998411342 * 10**14;
-        ratesByYear[4] = 1.00244353542177 * 10**14;
-        ratesByYear[5] = 1.00216776307204 * 10**14;
-        ratesByYear[6] = 1.0019479719906 * 10**14;
-        ratesByYear[7] = 1.00176867594624 * 10**14;
-        ratesByYear[8] = 1.00161962151688 * 10**14;
-        ratesByYear[9] = 1.00149374903201 * 10**14;
-        ratesByYear[10] = 1.00138603842211 * 10**14;
-        ratesByYear[11] = 1.00129282200636 * 10**14;
-        ratesByYear[12] = 1.00121135767832 * 10**14;
-        ratesByYear[13] = 1.00113955418154 * 10**14;
-        ratesByYear[14] = 1.00107578877672 * 10**14;
-        ratesByYear[15] = 1.00101878296575 * 10**14;
-        ratesByYear[16] = 1.00096751578846 * 10**14;
-        ratesByYear[17] = 1.00092116207264 * 10**14;
-        ratesByYear[18] = 1.00087904764088 * 10**14;
-        ratesByYear[19] = 1.00084061627889 * 10**14;
-        ratesByYear[20] = 1.00080540501263 * 10**14;
+        rateMultiplier = 10**9;
+        ratesByYear[1] = 1.00474436 * 10**9;
+        ratesByYear[2] = 1.003278088 * 10**9;
+        ratesByYear[3] = 1.002799842 * 10**9;
+        ratesByYear[4] = 1.002443535 * 10**9;
+        ratesByYear[5] = 1.002167763 * 10**9;
+        ratesByYear[6] = 1.001947972 * 10**9;
+        ratesByYear[7] = 1.001768676 * 10**9;
+        ratesByYear[8] = 1.001619621 * 10**9;
+        ratesByYear[9] = 1.001493749 * 10**9;
+        ratesByYear[10] = 1.001386038 * 10**9;
+        ratesByYear[11] = 1.001292822 * 10**9;
+        ratesByYear[12] = 1.001211358 * 10**9;
+        ratesByYear[13] = 1.001139554 * 10**9;
+        ratesByYear[14] = 1.001075789 * 10**9;
+        ratesByYear[15] = 1.001018783 * 10**9;
+        ratesByYear[16] = 1.000967516 * 10**9;
+        ratesByYear[17] = 1.000921162 * 10**9;
+        ratesByYear[18] = 1.000879048 * 10**9;
+        ratesByYear[19] = 1.000840616 * 10**9;
+        ratesByYear[20] = 1.000805405 * 10**9;
 
         totalRateWindows = 20;
         
@@ -91,13 +91,13 @@ contract ToorToken is ERC20Basic, Ownable {
         totalVestingPool = 4500000 * 10**18;
         startTime = now;
 
-        distributionAddresses[1] = 0xeD20cae0BF1FF4054E1a12bb071d41c95B5C94b5; // founder 1
-        distributionAddresses[2] = 0x220Aad0b0bf12fF7245A29cbBA8fcfe72D0dE5d9; // founder 2
-        distributionAddresses[3] = 0xc97dfb488407189C5b6d784678b6Dc8516Be88ca; // founder 3
-        distributionAddresses[4] = 0x9fD5979af1B5048B05A0e5d8bf2362938C66c1c8; // founder 4
-        distributionAddresses[5] = 0x91C3f66A7Bd302DEb55C2ffd0421D48F63DBE011; // founder 5
-        distributionAddresses[6] = 0x14278b24e40138822aD75EC740c23e3a99300DBf; // company
-        distributionAddresses[7] = 0x21445651dD395761544eF1658C5fFd2de7Ca45aC; // bounty
+        distributionAddresses[1] = 0x7d3BC9bb69dAB0544d34b7302DED8806bCF715e6; // founder 1
+        distributionAddresses[2] = 0x34Cf9afae3f926B9D040CA7A279C411355c5C480; // founder 2
+        distributionAddresses[3] = 0x059Cbd8A57b1dD944Da020a0D0a18D8dD7e78E04; // founder 3
+        distributionAddresses[4] = 0x4F8bC705827Fb8A781b27B9F02d2491F531f8962; // founder 4
+        distributionAddresses[5] = 0x532d370a98a478714625E9148D1205be061Df3bf; // founder 5
+        distributionAddresses[6] = 0xDe485bB000fA57e73197eF709960Fb7e32e0380E; // company
+        distributionAddresses[7] = 0xd562f635c75D2d7f3BE0005FBd3808a5cfb896bd; // bounty
         
         // This is for 20 years
         // tokenGenInterval = 603936;  // This is roughly 1 week in seconds
@@ -473,7 +473,7 @@ contract ToorToken is ERC20Basic, Ownable {
         uint256 totalRateWinds = totalRateWindows;
 
         // Defines the number of intervals we compute rewards for at a time
-        uint256 intPerBatch = 3; // Hardcoded here instead of storing on blockchain to save gas
+        uint256 intPerBatch = 5; // Hardcoded here instead of storing on blockchain to save gas
 
         mapping(uint256 => uint256) ratByYear = ratesByYear;
         uint256 ratMultiplier = rateMultiplier;
