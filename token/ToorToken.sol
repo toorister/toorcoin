@@ -350,6 +350,9 @@ contract ToorToken is ERC20Basic, Ownable {
             founderCat[0] = tokensToVest / 4;
             founderCat[1] = tokensToVest / 8;
 
+            // Update vesting pool
+            pendingVestingPool -= tokensToVest;
+
             // This condition checks if there are any rewards to pay after the cliff
             if (currInterval > intervalAtCliff && !rewardGenerationComplete) {
                 rewardCat[0] = tokensOwedByInterval(founderCat[0], intervalAtCliff, currInterval);
@@ -423,6 +426,8 @@ contract ToorToken is ERC20Basic, Ownable {
                 }
             }
 
+            // Reduce pendingVestingPool and update pending and paid installments
+            pendingVestingPool -= (installmentsToPay * tokensToVest);
             pendingInstallments -= installmentsToPay;
             paidInstallments += installmentsToPay;
         }
@@ -430,9 +435,6 @@ contract ToorToken is ERC20Basic, Ownable {
         // Increase total supply by the number of tokens being vested
         increaseTotalSupply(totalTokensToVest);
             
-        // Reduce pendingVestingPool and update pending and paid installments
-        pendingVestingPool -= totalTokensToVest;
-
         accounts[distributionAddresses[1]].lastInterval = currInterval;
         accounts[distributionAddresses[2]].lastInterval = currInterval;
         accounts[distributionAddresses[3]].lastInterval = currInterval;
