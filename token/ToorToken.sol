@@ -100,12 +100,8 @@ contract ToorToken is ERC20Basic, Ownable {
         distributionAddresses[7] = 0xd562f635c75D2d7f3BE0005FBd3808a5cfb896bd; // bounty
         
         // This is for 20 years
-        // tokenGenInterval = 603936;  // This is roughly 1 week in seconds
-        // uint256 timeToGenAllTokens = 628093440; // This is close to 20 years in seconds
-
-        // This is for 5.7 hours
-        tokenGenInterval = 60;
-        uint256 timeToGenAllTokens = 62400;
+        tokenGenInterval = 603936;  // This is roughly 1 week in seconds
+        uint256 timeToGenAllTokens = 628093440; // This is close to 20 years in seconds
 
         rewardGenerationComplete = false;
         
