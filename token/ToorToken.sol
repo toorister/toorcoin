@@ -398,7 +398,7 @@ contract ToorToken is ERC20Basic, Ownable {
             uint256 intervalsAtVest = 0;
 
             // Loop through installments to pay, so that we can add token holding rewards as we go along
-            for (uint256 installment = 1; installment <= installmentsToPay; installment++) {
+            for (uint256 installment = paidInstallments; installment <= installmentsToPay; installment++) {
                 intervalsAtVest = intervalAtTime(cliff + (installment * vestingPeriod) + startTime);
 
                 // This condition checks if there are any rewards to pay after the cliff
