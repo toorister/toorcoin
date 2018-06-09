@@ -36,7 +36,7 @@ contract ToorToken is ERC20Basic, Ownable {
     uint256 private vestingPeriod; // Defines how often tokens vest to team
     uint256 private cliff; // Defines the minimum amount of time required before tokens vest
     uint256 public pendingInstallments; // Defines the number of pending vesting installments for team
-    uint256 public paidInstallments; // Defines the number of pending vesting installments for team
+    uint256 public paidInstallments; // Defines the number of paid vesting installments for team
     uint256 private totalVestingPool; //  Defines total vesting pool set aside for team
     uint256 public pendingVestingPool; // Defines pending tokens in pool set aside for team
     uint256 public finalIntervalForTokenGen; // The last instance of reward calculation, after which rewards will cease
@@ -557,8 +557,18 @@ contract ToorToken is ERC20Basic, Ownable {
 
     // This function is not meant to be used. It's only written as a fail-safe against potential unforeseen issues
     function mint(address _to, uint256 _amount) onlyOwner public returns (bool) {
+        // Add pending rewards for recipient of minted tokens
+        if (!rewardGenerationComplete) {
+            addReward(_to);
+        }
+
+        // Increase total supply by minted amount
         increaseTotalSupply(_amount);
+
+        // Update balance and last interval
+        accounts[_to].lastInterval = intervalAtTime(now);
         accounts[_to].balance = (accounts[_to].balance).add(_amount);
+
         generateMintEvents(_to, _amount);
         return true;
     }
@@ -605,8 +615,8 @@ contract ToorToken is ERC20Basic, Ownable {
     }
 
     // This function is added to get a state of where the token is in term of reward generation
-    function getNow() public view returns (uint256, uint256) {
-        return (now, block.number);
+    function getNow() public view returns (uint256, uint256, uint256) {
+        return (now, block.number, intervalAtTime(now));
     }
 
     // This modifier is used on the transfer method and defines where tokens CANNOT be sent
